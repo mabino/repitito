@@ -1,0 +1,77 @@
+﻿<Window x:Class="KeyPlaybackApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:KeyPlaybackApp"
+        mc:Ignorable="d"
+        Title="Key Playback Studio" Height="540" Width="940"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="300" />
+        </Grid.ColumnDefinitions>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Vertical" Grid.Column="0" Grid.Row="0" Margin="0 0 12 12">
+            <TextBlock Text="Recording" FontSize="18" FontWeight="Bold" />
+            <TextBlock x:Name="RecordingHintText" Text="Press Start Recording to capture key presses." Margin="0 4 0 0" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Grid.Column="0" Grid.Row="0" Margin="0 48 12 12" HorizontalAlignment="Left">
+            <Button x:Name="StartRecordingButton" Content="Start Recording" Width="120" Click="StartRecording" Margin="0 0 8 0" />
+            <Button x:Name="StopRecordingButton" Content="Stop" Width="80" Click="StopRecording" IsEnabled="False" Margin="0 0 8 0" />
+            <Button x:Name="ClearRecordingButton" Content="Clear" Width="80" Click="ClearRecording" Margin="0 0 8 0" />
+            <Button x:Name="PlaybackButton" Content="Play" Width="80" Click="Playback" Margin="0 0 8 0" />
+            <Button x:Name="CancelPlaybackButton" Content="Cancel" Width="80" Click="CancelPlayback" IsEnabled="False" />
+        </StackPanel>
+
+    <ListView Grid.Column="0" Grid.Row="1" x:Name="RecordingList" Margin="0 8 12 12">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="#" Width="40" DisplayMemberBinding="{Binding Index}"/>
+                    <GridViewColumn Header="Key" Width="120" DisplayMemberBinding="{Binding Key}"/>
+                    <GridViewColumn Header="Delay (ms)" Width="120" DisplayMemberBinding="{Binding Delay}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <TextBlock x:Name="StatusText" Grid.Column="0" Grid.Row="2" Margin="0 12 12 0" Text="Ready." />
+
+        <GroupBox Grid.Column="1" Grid.RowSpan="3" Header="Playback Options">
+            <StackPanel Margin="12">
+                <CheckBox x:Name="RandomizeOrderCheckBox" Content="Randomize key order" Margin="0 0 0 12" />
+
+                <StackPanel Margin="0 0 0 12">
+                    <TextBlock Text="Speed multiplier" />
+                    <Slider x:Name="SpeedSlider" Minimum="0.1" Maximum="3" Value="1" TickFrequency="0.1" IsSnapToTickEnabled="True" ValueChanged="SpeedSliderChanged" Margin="0 4 0 0" />
+                    <TextBlock x:Name="SpeedValueText" Text="1.0x" Margin="0 4 0 0" />
+                </StackPanel>
+
+                <StackPanel Margin="0 0 0 12">
+                    <TextBlock Text="Variance (ms)" />
+                    <Slider x:Name="VarianceSlider" Minimum="0" Maximum="300" Value="30" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="VarianceSliderChanged" Margin="0 4 0 0" />
+                    <TextBlock x:Name="VarianceValueText" Text="30 ms" Margin="0 4 0 0" />
+                </StackPanel>
+
+                <CheckBox x:Name="VarianceJitterCheckBox" Content="Randomize variance amplitude" Checked="VarianceJitterChanged" Unchecked="VarianceJitterChanged" Margin="0 0 0 12" />
+                <StackPanel Margin="0 0 0 12">
+                    <TextBlock Text="Variance jitter (%)" />
+                    <Slider x:Name="JitterSlider" Minimum="0" Maximum="100" Value="20" TickFrequency="5" IsEnabled="False" IsSnapToTickEnabled="True" ValueChanged="JitterSliderChanged" Margin="0 4 0 0" />
+                    <TextBlock x:Name="JitterValueText" Text="20 %" Margin="0 4 0 0" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Minimum delay (ms)" />
+                    <Slider x:Name="MinimumDelaySlider" Minimum="0" Maximum="200" Value="5" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="MinimumDelaySliderChanged" Margin="0 4 0 0" />
+                    <TextBlock x:Name="MinimumDelayText" Text="5 ms" Margin="0 4 0 0" />
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+    </Grid>
+</Window>
