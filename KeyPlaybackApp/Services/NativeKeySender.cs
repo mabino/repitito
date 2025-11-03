@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 
-namespace KeyPlaybackApp.Services;
+namespace Repitito.Services;
 
 /// <summary>
 /// Sends key strokes using the Win32 SendInput API.

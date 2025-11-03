@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace KeyPlaybackApp;
+namespace Repitito;
 
 /// <summary>
 /// Interaction logic for App.xaml

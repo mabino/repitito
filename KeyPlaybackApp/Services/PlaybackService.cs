@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using KeyPlaybackApp.Core;
+using Repitito.Core;
 
-namespace KeyPlaybackApp.Services;
+namespace Repitito.Services;
 
 /// <summary>
 /// Plays back recorded key events according to the provided settings.

@@ -1,6 +1,6 @@
 using System.Windows.Input;
 
-namespace KeyPlaybackApp.Services;
+namespace Repitito.Services;
 
 /// <summary>
 /// Sends key strokes to the operating system.

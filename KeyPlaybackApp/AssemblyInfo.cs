@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Windows;
 
-[assembly: InternalsVisibleTo("KeyPlaybackApp.Tests")]
+[assembly: InternalsVisibleTo("Repitito.Tests")]
 
 [assembly:ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located

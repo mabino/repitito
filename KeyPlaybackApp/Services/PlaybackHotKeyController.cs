@@ -1,6 +1,6 @@
 using System;
 
-namespace KeyPlaybackApp.Services;
+namespace Repitito.Services;
 
 /// <summary>
 /// Encapsulates the decision logic for responding to the playback toggle hotkey.

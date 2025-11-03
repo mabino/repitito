@@ -5,11 +5,11 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using KeyPlaybackApp.Core;
-using KeyPlaybackApp.Services;
+using Repitito.Core;
+using Repitito.Services;
 using System.Windows.Input;
 
-namespace KeyPlaybackApp.Tests;
+namespace Repitito.Tests;
 
 internal static class Program
 {

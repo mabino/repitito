@@ -5,7 +5,7 @@ using System.Threading;
 using System.Windows.Input;
 using System.Windows.Interop;
 
-namespace KeyPlaybackApp.Services;
+namespace Repitito.Services;
 
 /// <summary>
 /// Registers a system-wide hotkey and raises <see cref="HotKeyPressed"/> when triggered.

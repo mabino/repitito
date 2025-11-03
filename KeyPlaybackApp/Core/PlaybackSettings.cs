@@ -1,6 +1,6 @@
 using System;
 
-namespace KeyPlaybackApp.Core;
+namespace Repitito.Core;
 
 /// <summary>
 /// Configures how recorded key events should be replayed.

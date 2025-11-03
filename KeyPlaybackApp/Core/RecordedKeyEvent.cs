@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace KeyPlaybackApp.Core;
+namespace Repitito.Core;
 
 /// <summary>
 /// Represents a key press captured during recording, including optional character data for playback.

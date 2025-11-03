@@ -1,6 +1,6 @@
 using System;
 
-namespace KeyPlaybackApp.Core;
+namespace Repitito.Core;
 
 /// <summary>
 /// Provides deterministic random values for the playback planner.

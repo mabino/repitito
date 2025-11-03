@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Input;
 
-namespace KeyPlaybackApp.Core;
+namespace Repitito.Core;
 
 /// <summary>
 /// Generates the concrete playback sequence from the captured events and playback settings.

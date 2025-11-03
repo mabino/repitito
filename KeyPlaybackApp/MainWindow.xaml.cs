@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
-using KeyPlaybackApp.Core;
-using KeyPlaybackApp.Services;
+using Repitito.Core;
+using Repitito.Services;
 
-namespace KeyPlaybackApp;
+namespace Repitito;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml
