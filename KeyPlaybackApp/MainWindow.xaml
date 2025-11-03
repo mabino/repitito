@@ -42,7 +42,7 @@
             </ListView.View>
         </ListView>
 
-        <TextBlock x:Name="StatusText" Grid.Column="0" Grid.Row="2" Margin="0 12 12 0" Text="Ready." />
+    <TextBlock x:Name="StatusText" Grid.Column="0" Grid.Row="2" Margin="0 12 12 0" Text="Ready." TextWrapping="Wrap" />
 
         <GroupBox Grid.Column="1" Grid.RowSpan="3" Header="Playback Options">
             <StackPanel Margin="12">

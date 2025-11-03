@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using KeyPlaybackApp.Core;
 using KeyPlaybackApp.Services;
 
@@ -20,10 +21,12 @@ public partial class MainWindow : Window
     private readonly List<RecordedKeyEvent> _recordedEvents = new();
     private readonly Stopwatch _stopwatch = new();
     private readonly PlaybackService _playbackService;
+    private readonly PlaybackHotKeyController _hotKeyController;
     private TimeSpan _lastRecordedElapsed;
     private bool _isRecording;
     private CancellationTokenSource? _playbackCancellation;
     private bool _isPlaying;
+    private GlobalHotKeyManager? _hotKeyManager;
 
     public MainWindow()
     {
@@ -36,6 +39,35 @@ public partial class MainWindow : Window
         JitterSlider.Value = 0;
         JitterValueText.Text = "0 %";
         UpdateUiState();
+        _hotKeyController = new PlaybackHotKeyController(
+            () => _isRecording,
+            () => _isPlaying,
+            () => _recordedEvents.Count,
+            StopRecordingFromHotKey,
+            StartPlaybackFromHotKey,
+            CancelPlaybackFromHotKey);
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        try
+        {
+            var helper = new WindowInteropHelper(this);
+            _hotKeyManager = new GlobalHotKeyManager(helper, Key.F8, ModifierKeys.None);
+            _hotKeyManager.HotKeyPressed += OnPlaybackHotKey;
+            StatusText.Text = "Ready. Press F8 anywhere to toggle playback.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Hotkey unavailable: " + ex.Message;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _hotKeyManager?.Dispose();
+        base.OnClosed(e);
     }
 
     private void StartRecording(object sender, RoutedEventArgs e)
@@ -136,6 +168,32 @@ public partial class MainWindow : Window
 
         _playbackCancellation?.Cancel();
     }
+
+    private void OnPlaybackHotKey(object? sender, EventArgs e)
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            var result = _hotKeyController.HandleHotKey();
+            switch (result)
+            {
+                case HotKeyResult.StartedPlayback:
+                    StatusText.Text = "Starting playback via F8…";
+                    break;
+                case HotKeyResult.CancelledPlayback:
+                    StatusText.Text = "Stopping playback via F8…";
+                    break;
+                case HotKeyResult.NoRecordingAvailable:
+                    StatusText.Text = "F8 pressed, but no keys are recorded.";
+                    break;
+            }
+        });
+    }
+
+    private void StopRecordingFromHotKey() => StopRecording(this, new RoutedEventArgs());
+
+    private void StartPlaybackFromHotKey() => Playback(this, new RoutedEventArgs());
+
+    private void CancelPlaybackFromHotKey() => CancelPlayback(this, new RoutedEventArgs());
 
     private PlaybackSettings BuildSettings()
     {
