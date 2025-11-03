@@ -228,9 +228,48 @@ public partial class MainWindow : Window
             : new RecordedKeyEvent(e.Key, delay);
 
         _recordedEvents.Add(entry);
-    var delayMilliseconds = Convert.ToInt32(Math.Round(delay.TotalMilliseconds));
-    _recordingRows.Add(new RecordingRow(_recordedEvents.Count, e.Key.ToString(), delayMilliseconds));
+        var delayMilliseconds = Convert.ToInt32(Math.Round(delay.TotalMilliseconds));
+        _recordingRows.Add(new RecordingRow(_recordedEvents.Count, e.Key.ToString(), delayMilliseconds));
         StatusText.Text = $"Captured: {e.Key}. Total {_recordedEvents.Count} keys.";
+    }
+
+    private void Window_TextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (!_isRecording)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(e.Text) || e.Text.Length != 1)
+        {
+            return;
+        }
+
+        var character = e.Text[0];
+        if (char.IsControl(character) || _recordedEvents.Count == 0)
+        {
+            return;
+        }
+
+        var lastIndex = _recordedEvents.Count - 1;
+        var lastEvent = _recordedEvents[lastIndex];
+        if (lastEvent.Character == character)
+        {
+            return;
+        }
+
+        if (lastIndex >= _recordingRows.Count)
+        {
+            return;
+        }
+
+        _recordedEvents[lastIndex] = lastEvent.WithCharacter(character);
+        var displayKey = lastEvent.Key.ToString();
+        var updatedDisplay = displayKey + " (\"" + character + "\")";
+        var currentRow = _recordingRows[lastIndex];
+        _recordingRows[lastIndex] = currentRow with { Key = updatedDisplay };
+
+        StatusText.Text = $"Captured: {displayKey} (\"{character}\"). Total {_recordedEvents.Count} keys.";
     }
 
     private void SpeedSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

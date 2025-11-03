@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -20,6 +21,7 @@ internal static class Program
 		runner.Run("KeySequencePlanner.RandomizesOrder", Tests_KeySequencePlanner.RandomizesOrder);
 		runner.Run("KeySequencePlanner.AppliesVariance", Tests_KeySequencePlanner.AppliesVariance);
 		runner.Run("KeySequencePlanner.EnforcesMinimumDelay", Tests_KeySequencePlanner.EnforcesMinimumDelay);
+		runner.Run("KeySequencePlanner.PreservesRecordedCharacters", Tests_KeySequencePlanner.PreservesRecordedCharacters);
 		runner.RunAsync("PlaybackService.DispatchesKeys", Tests_PlaybackService.DispatchesKeys).GetAwaiter().GetResult();
 		runner.Run("PlaybackHotKeyController.StartsPlaybackWhenIdle", Tests_PlaybackHotKeyController.StartsPlaybackWhenIdle);
 		runner.Run("PlaybackHotKeyController.CancelsWhenAlreadyPlaying", Tests_PlaybackHotKeyController.CancelsWhenAlreadyPlaying);
@@ -30,6 +32,7 @@ internal static class Program
 		runner.Run("NativeKeySender.FallsBackToVirtualKeyOnInvalidParameter", Tests_NativeKeySender.FallsBackToVirtualKeyOnInvalidParameter);
 		runner.Run("NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails", Tests_NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails);
 		runner.Run("NativeKeySender.UsesUnicodeWhenAvailable", Tests_NativeKeySender.UsesUnicodeWhenAvailable);
+		runner.Run("NativeKeySender.PrefersRecordedCharacter", Tests_NativeKeySender.PrefersRecordedCharacter);
 		runner.Run("NativeKeySender.InputStructLayoutMatches", Tests_NativeKeySender.InputStructLayoutMatches);
 
 		runner.PrintSummary();
@@ -132,6 +135,26 @@ internal static class Tests_KeySequencePlanner
 		var plan = planner.BuildPlan(events, settings);
 		Assert.Equal(15, plan[0].DelayBeforeMilliseconds, "Minimum delay should apply even with negative variance");
 	}
+
+	public static void PreservesRecordedCharacters()
+	{
+		var events = new[]
+		{
+			RecordedKeyEvent.First(Key.A, 'a'),
+			new RecordedKeyEvent(Key.B, TimeSpan.FromMilliseconds(120), 'B')
+		};
+
+		var planner = new KeySequencePlanner(new DeterministicRandomSource());
+		var settings = new PlaybackSettings
+		{
+			MinimumDelayMilliseconds = 0
+		};
+
+		var plan = planner.BuildPlan(events, settings);
+		Assert.Equal('a', plan[0].Character, "Planner should keep lowercase character data.");
+		Assert.Equal('B', plan[1].Character, "Planner should keep uppercase character data.");
+		Assert.SequenceEqual(new[] { Key.A, Key.B }, plan.ToKeys(), "Planner must keep key ordering.");
+	}
 }
 
 internal static class Tests_PlaybackService
@@ -140,8 +163,8 @@ internal static class Tests_PlaybackService
 	{
 		var events = new[]
 		{
-			RecordedKeyEvent.First(Key.A),
-			new RecordedKeyEvent(Key.B, TimeSpan.Zero)
+			RecordedKeyEvent.First(Key.A, 'a'),
+			new RecordedKeyEvent(Key.B, TimeSpan.Zero, 'b')
 		};
 
 		var fakeSender = new RecordingKeySender();
@@ -155,7 +178,9 @@ internal static class Tests_PlaybackService
 
 		await service.PlayAsync(events, settings, CancellationToken.None);
 
-		Assert.SequenceEqual(new[] { Key.A, Key.B }, fakeSender.SentKeys, "Playback should dispatch keys in plan order");
+		var sent = fakeSender.SentKeys;
+		Assert.SequenceEqual(new[] { Key.A, Key.B }, sent.Select(s => s.Key).ToList(), "Playback should dispatch keys in plan order");
+		Assert.SequenceEqual(new char?[] { 'a', 'b' }, sent.Select(s => s.Character).ToList(), "Playback should pass along recorded characters");
 	}
 }
 
@@ -212,7 +237,10 @@ internal static class Tests_NativeKeySender
 {
 	public static void ThrowsWhenScanCodeMissing()
 	{
-		var fake = new FakeNativeKeyboard(mapResponses: new Queue<uint>(new[] { 0u }));
+		var fake = new FakeNativeKeyboard(mapResponses: new Queue<uint>(new[] { 0u }))
+		{
+			VirtualKeyExceptionFactory = () => new InvalidOperationException("SendInput VK fallback failed with error code 87 (VK=65)")
+		};
 		var sender = new NativeKeySender(fake);
 		Assert.Throws<InvalidOperationException>(() => sender.SendKeyPress(Key.A), "map virtual key");
 	}
@@ -299,6 +327,22 @@ internal static class Tests_NativeKeySender
 		Assert.Equal('a', fake.UnicodeEvents[0].Character, "Unicode event should use lowercase character mapping when available.");
 		Assert.Equal(0, fake.ScanEvents.Count, "Unicode path should avoid scan code events when it succeeds.");
 		Assert.Equal(0, fake.VirtualKeyEvents.Count, "Unicode success should skip VK fallback.");
+	}
+
+	public static void PrefersRecordedCharacter()
+	{
+		var fake = new FakeNativeKeyboard(
+			mapResponses: new Queue<uint>(new[] { 0x1Eu }),
+			charResponses: new Queue<uint>(new[] { 0x41u }));
+
+		var sender = new NativeKeySender(fake);
+		sender.SendKeyPress(Key.A, 'a');
+
+		Assert.Equal(2, fake.UnicodeEvents.Count, "Recorded character path should produce key down and up events.");
+		Assert.Equal('a', fake.UnicodeEvents[0].Character, "Recorded character should be used before fallback mappings.");
+		Assert.Equal('a', fake.UnicodeEvents[1].Character, "Recorded character should be used for key release as well.");
+		Assert.Equal(0, fake.ScanEvents.Count, "Recorded character success should skip scan codes.");
+		Assert.Equal(0, fake.VirtualKeyEvents.Count, "Recorded character success should skip VK fallback.");
 	}
 
 	public static void InputStructLayoutMatches()
@@ -415,11 +459,11 @@ internal readonly record struct UnicodeEvent(char Character, bool IsKeyUp);
 
 internal sealed class RecordingKeySender : IKeySender
 {
-	public List<Key> SentKeys { get; } = new();
+	public List<(Key Key, char? Character)> SentKeys { get; } = new();
 
-	public void SendKeyPress(Key key)
+	public void SendKeyPress(Key key, char? recordedCharacter = null)
 	{
-		SentKeys.Add(key);
+		SentKeys.Add((key, recordedCharacter));
 	}
 }
 

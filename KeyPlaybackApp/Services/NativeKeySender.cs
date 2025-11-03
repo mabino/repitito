@@ -25,7 +25,7 @@ public sealed class NativeKeySender : IKeySender
 
     internal static int InputStructSizeForTests => InputStructSize;
 
-    public void SendKeyPress(Key key)
+    public void SendKeyPress(Key key, char? recordedCharacter = null)
     {
         var virtualKey = (ushort)KeyInterop.VirtualKeyFromKey(key);
         if (virtualKey == 0)
@@ -33,7 +33,17 @@ public sealed class NativeKeySender : IKeySender
             return;
         }
 
-    var failures = new List<string>();
+        var failures = new List<string>();
+        string? recordedCharFailure = null;
+        if (recordedCharacter is not null && TrySendUnicode(recordedCharacter.Value, out recordedCharFailure))
+        {
+            return;
+        }
+        if (recordedCharFailure is not null)
+        {
+            failures.Add("RecordedChar: " + recordedCharFailure);
+        }
+
         string? unicodeFailure = null;
         string? vkFailure = null;
         string? secondaryUnicodeFailure = null;

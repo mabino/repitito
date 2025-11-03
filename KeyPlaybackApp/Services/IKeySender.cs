@@ -7,5 +7,5 @@ namespace KeyPlaybackApp.Services;
 /// </summary>
 public interface IKeySender
 {
-    void SendKeyPress(Key key);
+    void SendKeyPress(Key key, char? recordedCharacter = null);
 }

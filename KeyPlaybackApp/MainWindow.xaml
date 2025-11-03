@@ -4,9 +4,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KeyPlaybackApp"
-        mc:Ignorable="d"
-        Title="Key Playback Studio" Height="540" Width="940"
-        PreviewKeyDown="Window_PreviewKeyDown">
+    mc:Ignorable="d"
+    Title="Key Playback Studio" Height="540" Width="940"
+    PreviewKeyDown="Window_PreviewKeyDown"
+    TextInput="Window_TextInput">
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -28,7 +29,7 @@
             <Button x:Name="StartRecordingButton" Content="Start Recording" Width="120" Click="StartRecording" Margin="0 0 8 0" />
             <Button x:Name="StopRecordingButton" Content="Stop" Width="80" Click="StopRecording" IsEnabled="False" Margin="0 0 8 0" />
             <Button x:Name="ClearRecordingButton" Content="Clear" Width="80" Click="ClearRecording" Margin="0 0 8 0" />
-            <Button x:Name="PlaybackButton" Content="Play" Width="80" Click="Playback" Margin="0 0 8 0" />
+            <Button x:Name="PlaybackButton" Content="Play (F8)" Width="90" Click="Playback" Margin="0 0 8 0" />
             <Button x:Name="CancelPlaybackButton" Content="Cancel" Width="80" Click="CancelPlayback" IsEnabled="False" />
         </StackPanel>
 

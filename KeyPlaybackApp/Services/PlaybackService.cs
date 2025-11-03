@@ -27,7 +27,7 @@ public sealed class PlaybackService
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(action.DelayBeforeMilliseconds, cancellationToken).ConfigureAwait(false);
-            _keySender.SendKeyPress(action.Key);
+            _keySender.SendKeyPress(action.Key, action.Character);
         }
     }
 }

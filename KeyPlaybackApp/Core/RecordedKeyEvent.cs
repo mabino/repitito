@@ -4,9 +4,11 @@ using System.Windows.Input;
 namespace KeyPlaybackApp.Core;
 
 /// <summary>
-/// Represents a key press captured during recording.
+/// Represents a key press captured during recording, including optional character data for playback.
 /// </summary>
-public sealed record RecordedKeyEvent(Key Key, TimeSpan DelaySincePrevious)
+public sealed record RecordedKeyEvent(Key Key, TimeSpan DelaySincePrevious, char? Character = null)
 {
-    public static RecordedKeyEvent First(Key key) => new(key, TimeSpan.Zero);
+    public static RecordedKeyEvent First(Key key, char? character = null) => new(key, TimeSpan.Zero, character);
+
+    public RecordedKeyEvent WithCharacter(char character) => this with { Character = character };
 }
