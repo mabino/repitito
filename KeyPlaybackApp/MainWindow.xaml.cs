@@ -1,12 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
 using Repitito.Core;
 using Repitito.Services;
 
@@ -27,6 +33,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _playbackCancellation;
     private bool _isPlaying;
     private GlobalHotKeyManager? _hotKeyManager;
+    private int? _editingRowIndex;
 
     public MainWindow()
     {
@@ -77,6 +84,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        CancelActiveInlineEdit(false);
         _recordedEvents.Clear();
         _recordingRows.Clear();
         _stopwatch.Restart();
@@ -108,6 +116,7 @@ public partial class MainWindow : Window
             StopRecording(sender, e);
         }
 
+        CancelActiveInlineEdit(false);
         _recordedEvents.Clear();
         _recordingRows.Clear();
         StatusText.Text = "Recording cleared.";
@@ -132,15 +141,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        CancelActiveInlineEdit(true);
+
         var settings = BuildSettings();
         try
         {
             _playbackCancellation = new CancellationTokenSource();
             _isPlaying = true;
             UpdateUiState();
-            StatusText.Text = "Playing back sequence…";
+            StatusText.Text = settings.LoopPlayback
+                ? "Playing back sequence in a loop… Press Cancel to stop."
+                : "Playing back sequence…";
             await _playbackService.PlayAsync(_recordedEvents, settings, _playbackCancellation.Token);
-            StatusText.Text = "Playback finished.";
+            StatusText.Text = settings.LoopPlayback
+                ? "Playback loop finished."
+                : "Playback finished.";
         }
         catch (OperationCanceledException)
         {
@@ -177,7 +192,9 @@ public partial class MainWindow : Window
             switch (result)
             {
                 case HotKeyResult.StartedPlayback:
-                    StatusText.Text = "Starting playback via F8…";
+                    StatusText.Text = LoopPlaybackCheckBox?.IsChecked != false
+                        ? "Starting looping playback via F8…"
+                        : "Starting playback via F8…";
                     break;
                 case HotKeyResult.CancelledPlayback:
                     StatusText.Text = "Stopping playback via F8…";
@@ -199,6 +216,7 @@ public partial class MainWindow : Window
     {
         var settings = new PlaybackSettings
         {
+            LoopPlayback = LoopPlaybackCheckBox?.IsChecked != false,
             RandomizeOrder = RandomizeOrderCheckBox.IsChecked == true,
             SpeedMultiplier = Math.Round(SpeedSlider.Value, 2),
             VarianceMilliseconds = Math.Round(VarianceSlider.Value, 2),
@@ -229,8 +247,12 @@ public partial class MainWindow : Window
 
         _recordedEvents.Add(entry);
         var delayMilliseconds = Convert.ToInt32(Math.Round(delay.TotalMilliseconds));
-        _recordingRows.Add(new RecordingRow(_recordedEvents.Count, e.Key.ToString(), delayMilliseconds));
-        StatusText.Text = $"Captured: {e.Key}. Total {_recordedEvents.Count} keys.";
+        var displayKey = entry.Character.HasValue
+            ? entry.Key + " (\"" + entry.Character.Value + "\")"
+            : entry.Key.ToString();
+        var row = new RecordingRow(_recordedEvents.Count, displayKey, delayMilliseconds);
+        _recordingRows.Add(row);
+        StatusText.Text = $"Captured: {entry.Key}. Total {_recordedEvents.Count} keys.";
     }
 
     private void Window_TextInput(object sender, TextCompositionEventArgs e)
@@ -264,12 +286,10 @@ public partial class MainWindow : Window
         }
 
         _recordedEvents[lastIndex] = lastEvent.WithCharacter(character);
-        var displayKey = lastEvent.Key.ToString();
-        var updatedDisplay = displayKey + " (\"" + character + "\")";
-        var currentRow = _recordingRows[lastIndex];
-        _recordingRows[lastIndex] = currentRow with { Key = updatedDisplay };
+        var displayKey = lastEvent.Key + " (\"" + character + "\")";
+        _recordingRows[lastIndex].SetKey(displayKey);
 
-        StatusText.Text = $"Captured: {displayKey} (\"{character}\"). Total {_recordedEvents.Count} keys.";
+        StatusText.Text = $"Captured: {lastEvent.Key} (\"{character}\"). Total {_recordedEvents.Count} keys.";
     }
 
     private void SpeedSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -329,6 +349,7 @@ public partial class MainWindow : Window
         PlaybackButton.IsEnabled = !_isRecording && !_isPlaying && _recordedEvents.Count > 0;
         CancelPlaybackButton.IsEnabled = _isPlaying;
         ClearRecordingButton.IsEnabled = !_isRecording && !_isPlaying && _recordedEvents.Count > 0;
+        LoopPlaybackCheckBox.IsEnabled = !_isRecording && !_isPlaying;
         RandomizeOrderCheckBox.IsEnabled = !_isRecording && !_isPlaying;
         SpeedSlider.IsEnabled = !_isRecording;
         VarianceSlider.IsEnabled = !_isRecording;
@@ -337,8 +358,246 @@ public partial class MainWindow : Window
         MinimumDelaySlider.IsEnabled = !_isRecording;
     }
 
-    private sealed record RecordingRow(int Index, string Key, int DelayMilliseconds)
+    private void DelayCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        public string Delay => DelayMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (e.ClickCount < 2)
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement element || element.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_isRecording || _isPlaying)
+        {
+            StatusText.Text = "Finish recording or playback before editing delays.";
+            return;
+        }
+
+        StartInlineEdit(row);
+    }
+
+    private void DelayEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            EndInlineEdit(row, true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            EndInlineEdit(row, false);
+            e.Handled = true;
+        }
+    }
+
+    private void DelayEditor_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        EndInlineEdit(row, true);
+    }
+
+    private void StartInlineEdit(RecordingRow row)
+    {
+        var index = _recordingRows.IndexOf(row);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (_editingRowIndex.HasValue && _editingRowIndex.Value != index)
+        {
+            var current = _recordingRows.ElementAtOrDefault(_editingRowIndex.Value);
+            if (current is not null)
+            {
+                EndInlineEdit(current, false);
+            }
+        }
+
+        row.IsEditing = true;
+        row.DelayText = row.DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
+        _editingRowIndex = index;
+
+        Dispatcher.InvokeAsync(() =>
+        {
+            var container = RecordingList.ItemContainerGenerator.ContainerFromIndex(index) as ListViewItem;
+            if (container == null)
+            {
+                return;
+            }
+
+            var editor = FindVisualChild<TextBox>(container, "DelayEditor");
+            if (editor != null)
+            {
+                editor.Focus();
+                editor.SelectAll();
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    private void EndInlineEdit(RecordingRow row, bool commit)
+    {
+        var index = _recordingRows.IndexOf(row);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (commit && int.TryParse(row.DelayText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            var clamped = Math.Max(0, parsed);
+            var eventIndex = row.Index - 1;
+            if (eventIndex >= 0 && eventIndex < _recordedEvents.Count)
+            {
+                var existing = _recordedEvents[eventIndex];
+                _recordedEvents[eventIndex] = existing with { DelaySincePrevious = TimeSpan.FromMilliseconds(clamped) };
+            }
+
+            row.SetDelay(clamped);
+            StatusText.Text = $"Updated delay for entry #{row.Index} to {clamped} ms.";
+        }
+        else
+        {
+            row.DelayText = row.DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        row.IsEditing = false;
+        if (_editingRowIndex == index)
+        {
+            _editingRowIndex = null;
+        }
+    }
+
+    private void CancelActiveInlineEdit(bool commit)
+    {
+        if (!_editingRowIndex.HasValue)
+        {
+            return;
+        }
+
+        var row = _recordingRows.ElementAtOrDefault(_editingRowIndex.Value);
+        if (row != null)
+        {
+            EndInlineEdit(row, commit);
+        }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent, string name) where T : DependencyObject
+    {
+        if (parent == null)
+        {
+            return null;
+        }
+
+        var childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T typed && child is FrameworkElement fe && fe.Name == name)
+            {
+                return typed;
+            }
+
+            var result = FindVisualChild<T>(child, name);
+            if (result != null)
+            {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    private sealed class RecordingRow : INotifyPropertyChanged
+    {
+        private string _key;
+        private int _delayMilliseconds;
+        private bool _isEditing;
+        private string _delayText;
+
+        public RecordingRow(int index, string key, int delayMilliseconds)
+        {
+            Index = index;
+            _key = key;
+            _delayMilliseconds = delayMilliseconds;
+            _delayText = delayMilliseconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        public int Index { get; }
+
+        public string Key
+        {
+            get => _key;
+            private set => SetField(ref _key, value, nameof(Key));
+        }
+
+        public int DelayMilliseconds
+        {
+            get => _delayMilliseconds;
+            private set
+            {
+                if (SetField(ref _delayMilliseconds, value, nameof(DelayMilliseconds)))
+                {
+                    OnPropertyChanged(nameof(Delay));
+                }
+            }
+        }
+
+        public string Delay => DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
+
+        public string DelayText
+        {
+            get => _delayText;
+            set => SetField(ref _delayText, value, nameof(DelayText));
+        }
+
+        public bool IsEditing
+        {
+            get => _isEditing;
+            set => SetField(ref _isEditing, value, nameof(IsEditing));
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public void SetDelay(int delayMilliseconds)
+        {
+            DelayMilliseconds = delayMilliseconds;
+            DelayText = delayMilliseconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        public void SetKey(string key) => Key = key;
+
+        private bool SetField<TValue>(ref TValue field, TValue value, params string[] propertyNames)
+        {
+            if (EqualityComparer<TValue>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            foreach (var propertyName in propertyNames)
+            {
+                OnPropertyChanged(propertyName);
+            }
+
+            return true;
+        }
+
+        private void OnPropertyChanged(string propertyName) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

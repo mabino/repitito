@@ -13,6 +13,7 @@ public sealed class PlaybackSettings
     public bool EnableVarianceJitter { get; init; }
     public double VarianceJitterPercent { get; init; }
     public double MinimumDelayMilliseconds { get; init; } = 5;
+    public bool LoopPlayback { get; init; } = true;
 
     public void Validate()
     {

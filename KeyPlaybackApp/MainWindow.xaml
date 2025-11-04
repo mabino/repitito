@@ -38,7 +38,23 @@
                 <GridView>
                     <GridViewColumn Header="#" Width="40" DisplayMemberBinding="{Binding Index}"/>
                     <GridViewColumn Header="Key" Width="120" DisplayMemberBinding="{Binding Key}"/>
-                    <GridViewColumn Header="Delay (ms)" Width="120" DisplayMemberBinding="{Binding Delay}"/>
+                    <GridViewColumn Header="Delay (ms)" Width="120">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                <Grid>
+                                    <TextBlock x:Name="DelayTextBlock" Text="{Binding Delay}" Padding="2" HorizontalAlignment="Left" />
+                                    <TextBox x:Name="DelayEditor" Text="{Binding DelayText, Mode=TwoWay, UpdateSourceTrigger=Explicit}" Padding="0" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Visibility="Collapsed" PreviewKeyDown="DelayEditor_PreviewKeyDown" LostFocus="DelayEditor_LostFocus" />
+                                    <Border Background="Transparent" MouseLeftButtonDown="DelayCell_MouseLeftButtonDown" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                        <Setter TargetName="DelayTextBlock" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="DelayEditor" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                 </GridView>
             </ListView.View>
         </ListView>
@@ -47,6 +63,7 @@
 
         <GroupBox Grid.Column="1" Grid.RowSpan="3" Header="Playback Options">
             <StackPanel Margin="12">
+                <CheckBox x:Name="LoopPlaybackCheckBox" Content="Loop playback continuously" IsChecked="True" Margin="0 0 0 12" />
                 <CheckBox x:Name="RandomizeOrderCheckBox" Content="Randomize key order" Margin="0 0 0 12" />
 
                 <StackPanel Margin="0 0 0 12">

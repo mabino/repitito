@@ -7,6 +7,7 @@ Repitito is a Windows desktop application that captures keyboard input and repla
 - **Record & Playback** – Capture keystrokes with timing metadata and replay them deterministically.
 - **Global Hotkey** – Use `F8` anywhere to toggle playback, even when the main window is not focused.
 - **Lowercase Preservation** – Recorded characters keep their original glyphs (including lowercase) through playback.
+- **Loop Playback** – Continuously repeat recorded sequences (enabled by default) with a single checkbox toggle.
 - **Playback Controls** – Configure randomization, minimum delay, speed multiplier, and variance jitter.
 - **Diagnostics & Tests** – Native SendInput wrappers include guarded fallbacks with extensive unit tests.
 
@@ -58,7 +59,3 @@ The solution includes a custom console-based test runner. Execute it via:
 1. Fork the repository and create a feature branch.
 2. Run `dotnet run --project KeyPlaybackApp.Tests/KeyPlaybackApp.Tests.csproj` to ensure tests pass.
 3. Submit a pull request describing your changes.
-
-## License
-
-This project currently does not specify a license. Please reach out before using it in a commercial context.

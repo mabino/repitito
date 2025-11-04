@@ -22,12 +22,37 @@ public sealed class PlaybackService
 
     public async Task PlayAsync(IEnumerable<RecordedKeyEvent> events, PlaybackSettings settings, CancellationToken cancellationToken)
     {
-        var plan = _planner.BuildPlan(events, settings);
-        foreach (var action in plan)
+        if (events is null)
+        {
+            throw new ArgumentNullException(nameof(events));
+        }
+
+        if (settings is null)
+        {
+            throw new ArgumentNullException(nameof(settings));
+        }
+
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(action.DelayBeforeMilliseconds, cancellationToken).ConfigureAwait(false);
-            _keySender.SendKeyPress(action.Key, action.Character);
+
+            var plan = _planner.BuildPlan(events, settings);
+            if (plan.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var action in plan)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(action.DelayBeforeMilliseconds, cancellationToken).ConfigureAwait(false);
+                _keySender.SendKeyPress(action.Key, action.Character);
+            }
+
+            if (!settings.LoopPlayback)
+            {
+                break;
+            }
         }
     }
 }

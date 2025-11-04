@@ -23,6 +23,7 @@ internal static class Program
 		runner.Run("KeySequencePlanner.EnforcesMinimumDelay", Tests_KeySequencePlanner.EnforcesMinimumDelay);
 		runner.Run("KeySequencePlanner.PreservesRecordedCharacters", Tests_KeySequencePlanner.PreservesRecordedCharacters);
 		runner.RunAsync("PlaybackService.DispatchesKeys", Tests_PlaybackService.DispatchesKeys).GetAwaiter().GetResult();
+		runner.RunAsync("PlaybackService.LoopsUntilCancelled", Tests_PlaybackService.LoopsUntilCancelled).GetAwaiter().GetResult();
 		runner.Run("PlaybackHotKeyController.StartsPlaybackWhenIdle", Tests_PlaybackHotKeyController.StartsPlaybackWhenIdle);
 		runner.Run("PlaybackHotKeyController.CancelsWhenAlreadyPlaying", Tests_PlaybackHotKeyController.CancelsWhenAlreadyPlaying);
 		runner.Run("PlaybackHotKeyController.IgnoresWhenEmpty", Tests_PlaybackHotKeyController.IgnoresWhenEmpty);
@@ -55,7 +56,8 @@ internal static class Tests_KeySequencePlanner
 		{
 			SpeedMultiplier = 2,
 			VarianceMilliseconds = 0,
-			MinimumDelayMilliseconds = 0
+			MinimumDelayMilliseconds = 0,
+			LoopPlayback = false
 		};
 
 		var planner = new KeySequencePlanner(new DeterministicRandomSource());
@@ -81,7 +83,8 @@ internal static class Tests_KeySequencePlanner
 		var settings = new PlaybackSettings
 		{
 			RandomizeOrder = true,
-			MinimumDelayMilliseconds = 0
+			MinimumDelayMilliseconds = 0,
+			LoopPlayback = false
 		};
 
 		var plan = planner.BuildPlan(events, settings);
@@ -107,7 +110,8 @@ internal static class Tests_KeySequencePlanner
 			SpeedMultiplier = 1,
 			VarianceMilliseconds = 40,
 			EnableVarianceJitter = false,
-			MinimumDelayMilliseconds = 0
+			MinimumDelayMilliseconds = 0,
+			LoopPlayback = false
 		};
 
 		var plan = planner.BuildPlan(events, settings);
@@ -129,7 +133,8 @@ internal static class Tests_KeySequencePlanner
 		var settings = new PlaybackSettings
 		{
 			MinimumDelayMilliseconds = 15,
-			VarianceMilliseconds = 50
+			VarianceMilliseconds = 50,
+			LoopPlayback = false
 		};
 
 		var plan = planner.BuildPlan(events, settings);
@@ -147,7 +152,8 @@ internal static class Tests_KeySequencePlanner
 		var planner = new KeySequencePlanner(new DeterministicRandomSource());
 		var settings = new PlaybackSettings
 		{
-			MinimumDelayMilliseconds = 0
+			MinimumDelayMilliseconds = 0,
+			LoopPlayback = false
 		};
 
 		var plan = planner.BuildPlan(events, settings);
@@ -173,7 +179,8 @@ internal static class Tests_PlaybackService
 
 		var settings = new PlaybackSettings
 		{
-			MinimumDelayMilliseconds = 0
+			MinimumDelayMilliseconds = 0,
+			LoopPlayback = false
 		};
 
 		await service.PlayAsync(events, settings, CancellationToken.None);
@@ -181,6 +188,36 @@ internal static class Tests_PlaybackService
 		var sent = fakeSender.SentKeys;
 		Assert.SequenceEqual(new[] { Key.A, Key.B }, sent.Select(s => s.Key).ToList(), "Playback should dispatch keys in plan order");
 		Assert.SequenceEqual(new char?[] { 'a', 'b' }, sent.Select(s => s.Character).ToList(), "Playback should pass along recorded characters");
+	}
+
+	public static async Task LoopsUntilCancelled()
+	{
+		var events = new[]
+		{
+			RecordedKeyEvent.First(Key.A, 'a')
+		};
+
+		using var cts = new CancellationTokenSource();
+		var sender = new CancellingKeySender(cts, threshold: 5);
+		var planner = new KeySequencePlanner(new DeterministicRandomSource());
+		var service = new PlaybackService(sender, planner);
+		var settings = new PlaybackSettings
+		{
+			MinimumDelayMilliseconds = 0,
+			LoopPlayback = true
+		};
+
+		try
+		{
+			await service.PlayAsync(events, settings, cts.Token);
+			Assert.Fail("Looping playback should throw when cancellation is requested.");
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected cancellation path.
+		}
+
+		Assert.True(sender.SentKeys.Count >= 5, "Looping playback should emit multiple key events before cancellation.");
 	}
 }
 
@@ -464,6 +501,33 @@ internal sealed class RecordingKeySender : IKeySender
 	public void SendKeyPress(Key key, char? recordedCharacter = null)
 	{
 		SentKeys.Add((key, recordedCharacter));
+	}
+}
+
+internal sealed class CancellingKeySender : IKeySender
+{
+	private readonly CancellationTokenSource _cts;
+	private readonly int _threshold;
+
+	public CancellingKeySender(CancellationTokenSource cts, int threshold)
+	{
+		_cts = cts ?? throw new ArgumentNullException(nameof(cts));
+		_threshold = threshold;
+		if (_threshold <= 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(threshold), "Threshold must be positive.");
+		}
+	}
+
+	public List<(Key Key, char? Character)> SentKeys { get; } = new();
+
+	public void SendKeyPress(Key key, char? recordedCharacter = null)
+	{
+		SentKeys.Add((key, recordedCharacter));
+		if (SentKeys.Count >= _threshold)
+		{
+			_cts.Cancel();
+		}
 	}
 }
 
