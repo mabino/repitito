@@ -22,6 +22,10 @@ internal static class Program
 		runner.Run("KeySequencePlanner.AppliesVariance", Tests_KeySequencePlanner.AppliesVariance);
 		runner.Run("KeySequencePlanner.EnforcesMinimumDelay", Tests_KeySequencePlanner.EnforcesMinimumDelay);
 		runner.Run("KeySequencePlanner.PreservesRecordedCharacters", Tests_KeySequencePlanner.PreservesRecordedCharacters);
+		runner.Run("InlineKeyLabel.ParsesKeyWithoutCharacter", Tests_InlineKeyLabel.ParsesKeyWithoutCharacter);
+		runner.Run("InlineKeyLabel.ParsesKeyWithCharacter", Tests_InlineKeyLabel.ParsesKeyWithCharacter);
+		runner.Run("InlineKeyLabel.RejectsInvalidKey", Tests_InlineKeyLabel.RejectsInvalidKey);
+		runner.Run("InlineKeyLabel.RejectsBadCharacterLiteral", Tests_InlineKeyLabel.RejectsBadCharacterLiteral);
 		runner.RunAsync("PlaybackService.DispatchesKeys", Tests_PlaybackService.DispatchesKeys).GetAwaiter().GetResult();
 		runner.RunAsync("PlaybackService.LoopsUntilCancelled", Tests_PlaybackService.LoopsUntilCancelled).GetAwaiter().GetResult();
 		runner.Run("PlaybackHotKeyController.StartsPlaybackWhenIdle", Tests_PlaybackHotKeyController.StartsPlaybackWhenIdle);
@@ -34,6 +38,7 @@ internal static class Program
 		runner.Run("NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails", Tests_NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails);
 		runner.Run("NativeKeySender.UsesUnicodeWhenAvailable", Tests_NativeKeySender.UsesUnicodeWhenAvailable);
 		runner.Run("NativeKeySender.PrefersRecordedCharacter", Tests_NativeKeySender.PrefersRecordedCharacter);
+		runner.Run("NativeKeySender.UsesScanCodesForReturn", Tests_NativeKeySender.UsesScanCodesForReturn);
 		runner.Run("NativeKeySender.InputStructLayoutMatches", Tests_NativeKeySender.InputStructLayoutMatches);
 
 		runner.PrintSummary();
@@ -160,6 +165,43 @@ internal static class Tests_KeySequencePlanner
 		Assert.Equal('a', plan[0].Character, "Planner should keep lowercase character data.");
 		Assert.Equal('B', plan[1].Character, "Planner should keep uppercase character data.");
 		Assert.SequenceEqual(new[] { Key.A, Key.B }, plan.ToKeys(), "Planner must keep key ordering.");
+	}
+}
+
+internal static class Tests_InlineKeyLabel
+{
+	public static void ParsesKeyWithoutCharacter()
+	{
+		var success = InlineKeyLabel.TryParse("Enter", out var key, out var character, out var label, out var error);
+		Assert.True(success, "Enter should parse successfully.");
+		Assert.Equal(Key.Enter, key, "Parsed key should be Enter.");
+		Assert.True(character is null, "Character should be null when not provided.");
+		Assert.Equal(InlineKeyLabel.Format(Key.Enter, null), label, "Display label should match the formatter output.");
+		Assert.Equal(string.Empty, error, "Error should be empty on success.");
+	}
+
+	public static void ParsesKeyWithCharacter()
+	{
+		var success = InlineKeyLabel.TryParse("A (\"a\")", out var key, out var character, out var label, out var error);
+		Assert.True(success, "Key with character suffix should parse successfully.");
+		Assert.Equal(Key.A, key, "Parsed key should match the prefix.");
+		Assert.True(character.HasValue && character.Value == 'a', "Character should reflect the literal.");
+		Assert.Equal(InlineKeyLabel.Format(Key.A, 'a'), label, "Display label should round-trip through formatter.");
+		Assert.Equal(string.Empty, error, "Error should be empty on success.");
+	}
+
+	public static void RejectsInvalidKey()
+	{
+		var success = InlineKeyLabel.TryParse("NotAKey", out _, out _, out _, out var error);
+		Assert.True(!success, "Unknown key names should fail to parse.");
+		Assert.True(error.Contains("Unknown", StringComparison.OrdinalIgnoreCase), "Error should mention the unknown key.");
+	}
+
+	public static void RejectsBadCharacterLiteral()
+	{
+		var success = InlineKeyLabel.TryParse("A (\"ab\")", out _, out _, out _, out var error);
+		Assert.True(!success, "Multiple-character literals should fail.");
+		Assert.True(error.Contains("exactly", StringComparison.OrdinalIgnoreCase), "Error should explain the character length restriction.");
 	}
 }
 
@@ -380,6 +422,22 @@ internal static class Tests_NativeKeySender
 		Assert.Equal('a', fake.UnicodeEvents[1].Character, "Recorded character should be used for key release as well.");
 		Assert.Equal(0, fake.ScanEvents.Count, "Recorded character success should skip scan codes.");
 		Assert.Equal(0, fake.VirtualKeyEvents.Count, "Recorded character success should skip VK fallback.");
+	}
+
+	public static void UsesScanCodesForReturn()
+	{
+		var fake = new FakeNativeKeyboard(
+			mapResponses: new Queue<uint>(new[] { 0x1Cu }),
+			charResponses: new Queue<uint>(new[] { 0x0Du }));
+
+		var sender = new NativeKeySender(fake);
+		sender.SendKeyPress(Key.Return);
+
+		Assert.Equal(2, fake.ScanEvents.Count, "Return should emit scan code down/up.");
+		Assert.True(!fake.ScanEvents[0].IsKeyUp, "First scan event should be key down.");
+		Assert.True(fake.ScanEvents[1].IsKeyUp, "Second scan event should be key up.");
+		Assert.Equal(0, fake.UnicodeEvents.Count, "Return should avoid the Unicode path.");
+		Assert.Equal(0, fake.VirtualKeyEvents.Count, "Successful scan path should skip VK fallback.");
 	}
 
 	public static void InputStructLayoutMatches()

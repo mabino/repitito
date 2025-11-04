@@ -1,4 +1,4 @@
-# Repitito
+# Repitito - The Little Key Repeater
 
 Repitito is a Windows desktop application that captures keyboard input and replays it on demand. It is built with WPF on .NET 9 and comes with a lightweight test harness to guard the SendInput interop layer and the playback planner.
 
@@ -8,6 +8,8 @@ Repitito is a Windows desktop application that captures keyboard input and repla
 - **Global Hotkey** – Use `F8` anywhere to toggle playback, even when the main window is not focused.
 - **Lowercase Preservation** – Recorded characters keep their original glyphs (including lowercase) through playback.
 - **Loop Playback** – Continuously repeat recorded sequences (enabled by default) with a single checkbox toggle.
+- **Inline Editing** – Double-click delay or key cells to edit them in place with validation for key names and recorded characters.
+- **Drag Reordering** – Use the handle column to drag rows and reorder the playback sequence on the fly.
 - **Playback Controls** – Configure randomization, minimum delay, speed multiplier, and variance jitter.
 - **Diagnostics & Tests** – Native SendInput wrappers include guarded fallbacks with extensive unit tests.
 
@@ -53,9 +55,3 @@ The solution includes a custom console-based test runner. Execute it via:
 ## Hotkey Reference
 
 - `F8` – Start playback if idle, stop playback if running, or dismiss recording mode.
-
-## Contributing
-
-1. Fork the repository and create a feature branch.
-2. Run `dotnet run --project KeyPlaybackApp.Tests/KeyPlaybackApp.Tests.csproj` to ensure tests pass.
-3. Submit a pull request describing your changes.

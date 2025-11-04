@@ -33,27 +33,52 @@
             <Button x:Name="CancelPlaybackButton" Content="Cancel" Width="80" Click="CancelPlayback" IsEnabled="False" />
         </StackPanel>
 
-    <ListView Grid.Column="0" Grid.Row="1" x:Name="RecordingList" Margin="0 8 12 12">
+    <ListView Grid.Column="0" Grid.Row="1" x:Name="RecordingList" Margin="0 8 12 12" AllowDrop="True" DragOver="RecordingList_DragOver" Drop="RecordingList_Drop">
             <ListView.View>
                 <GridView>
+                    <GridViewColumn Header="" Width="36">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border x:Name="DragHandle" Cursor="SizeAll" Background="Transparent" Padding="4" PreviewMouseLeftButtonDown="DragHandle_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="DragHandle_PreviewMouseLeftButtonUp" MouseMove="DragHandle_MouseMove">
+                                    <TextBlock Text="::" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
+                                </Border>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn Header="#" Width="40" DisplayMemberBinding="{Binding Index}"/>
-                    <GridViewColumn Header="Key" Width="120" DisplayMemberBinding="{Binding Key}"/>
+                    <GridViewColumn Header="Key" Width="160">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <TextBlock x:Name="KeyTextBlock" Text="{Binding Key}" Padding="2" HorizontalAlignment="Left" />
+                                    <TextBox x:Name="KeyEditor" Text="{Binding KeyText, Mode=TwoWay, UpdateSourceTrigger=Explicit}" Padding="0" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Visibility="Collapsed" PreviewKeyDown="KeyEditor_PreviewKeyDown" LostFocus="KeyEditor_LostFocus" />
+                                    <Border Background="Transparent" MouseLeftButtonDown="KeyCell_MouseLeftButtonDown" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsKeyEditing}" Value="True">
+                                        <Setter TargetName="KeyTextBlock" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="KeyEditor" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn Header="Delay (ms)" Width="120">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
                                 <Grid>
                                     <TextBlock x:Name="DelayTextBlock" Text="{Binding Delay}" Padding="2" HorizontalAlignment="Left" />
                                     <TextBox x:Name="DelayEditor" Text="{Binding DelayText, Mode=TwoWay, UpdateSourceTrigger=Explicit}" Padding="0" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Visibility="Collapsed" PreviewKeyDown="DelayEditor_PreviewKeyDown" LostFocus="DelayEditor_LostFocus" />
                                     <Border Background="Transparent" MouseLeftButtonDown="DelayCell_MouseLeftButtonDown" />
                                 </Grid>
                                 <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                    <DataTrigger Binding="{Binding IsDelayEditing}" Value="True">
                                         <Setter TargetName="DelayTextBlock" Property="Visibility" Value="Collapsed" />
                                         <Setter TargetName="DelayEditor" Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
                     </GridViewColumn>
                 </GridView>
             </ListView.View>

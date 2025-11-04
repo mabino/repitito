@@ -48,9 +48,10 @@ public sealed class NativeKeySender : IKeySender
         string? vkFailure = null;
         string? secondaryUnicodeFailure = null;
         var charCode = _nativeKeyboard.MapVirtualKeyToChar(virtualKey);
-        var hasCharacter = charCode != 0;
+        var mappedCharacter = charCode != 0 ? (char)charCode : '\0';
+        var hasCharacter = charCode != 0 && !char.IsControl(mappedCharacter);
 
-        if (hasCharacter && TrySendUnicode((char)charCode, out unicodeFailure))
+        if (hasCharacter && TrySendUnicode(mappedCharacter, out unicodeFailure))
         {
             return;
         }
@@ -66,7 +67,7 @@ public sealed class NativeKeySender : IKeySender
         if (scanCode == 0)
         {
             if (!TrySendVirtualKey(virtualKey, out vkFailure)
-                && !(hasCharacter && TrySendUnicode((char)charCode, out secondaryUnicodeFailure)))
+                && !(hasCharacter && TrySendUnicode(mappedCharacter, out secondaryUnicodeFailure)))
             {
                 if (vkFailure is not null)
                 {
@@ -101,7 +102,7 @@ public sealed class NativeKeySender : IKeySender
                 }
             }
 
-            var unicodeSuccess = hasCharacter && TrySendUnicode((char)charCode, out secondaryUnicodeFailure);
+            var unicodeSuccess = hasCharacter && TrySendUnicode(mappedCharacter, out secondaryUnicodeFailure);
             if (!unicodeSuccess && secondaryUnicodeFailure is not null)
             {
                 failures.Add(secondaryUnicodeFailure);

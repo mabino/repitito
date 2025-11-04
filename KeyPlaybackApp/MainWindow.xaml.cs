@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     private bool _isPlaying;
     private GlobalHotKeyManager? _hotKeyManager;
     private int? _editingRowIndex;
+    private InlineField _activeInlineField = InlineField.None;
+    private Point _dragStartPoint;
+    private RecordingRow? _dragSourceRow;
 
     public MainWindow()
     {
@@ -82,6 +85,20 @@ public partial class MainWindow : Window
         if (_isPlaying)
         {
             return;
+        }
+
+        if (_recordedEvents.Count > 0)
+        {
+            var message = _recordedEvents.Count == 1
+                ? "Starting a new recording will clear 1 captured entry. Continue?"
+                : $"Starting a new recording will clear {_recordedEvents.Count} captured entries. Continue?";
+
+            var result = MessageBox.Show(this, message, "Replace Existing Recording?", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (result != MessageBoxResult.OK)
+            {
+                StatusText.Text = "Recording unchanged.";
+                return;
+            }
         }
 
         CancelActiveInlineEdit(false);
@@ -247,9 +264,7 @@ public partial class MainWindow : Window
 
         _recordedEvents.Add(entry);
         var delayMilliseconds = Convert.ToInt32(Math.Round(delay.TotalMilliseconds));
-        var displayKey = entry.Character.HasValue
-            ? entry.Key + " (\"" + entry.Character.Value + "\")"
-            : entry.Key.ToString();
+    var displayKey = InlineKeyLabel.Format(entry.Key, entry.Character);
         var row = new RecordingRow(_recordedEvents.Count, displayKey, delayMilliseconds);
         _recordingRows.Add(row);
         StatusText.Text = $"Captured: {entry.Key}. Total {_recordedEvents.Count} keys.";
@@ -286,7 +301,7 @@ public partial class MainWindow : Window
         }
 
         _recordedEvents[lastIndex] = lastEvent.WithCharacter(character);
-        var displayKey = lastEvent.Key + " (\"" + character + "\")";
+    var displayKey = InlineKeyLabel.Format(lastEvent.Key, character);
         _recordingRows[lastIndex].SetKey(displayKey);
 
         StatusText.Text = $"Captured: {lastEvent.Key} (\"{character}\"). Total {_recordedEvents.Count} keys.";
@@ -377,10 +392,52 @@ public partial class MainWindow : Window
             return;
         }
 
-        StartInlineEdit(row);
+        StartInlineEdit(row, InlineField.Delay);
+    }
+
+    private void KeyCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2)
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement element || element.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_isRecording || _isPlaying)
+        {
+            StatusText.Text = "Finish recording or playback before editing keys.";
+            return;
+        }
+
+        StartInlineEdit(row, InlineField.Key);
     }
 
     private void DelayEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            EndInlineEdit(row, true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            EndInlineEdit(row, false);
+            e.Handled = true;
+        }
+    }
+
+    private void KeyEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
         {
@@ -411,7 +468,18 @@ public partial class MainWindow : Window
         EndInlineEdit(row, true);
     }
 
-    private void StartInlineEdit(RecordingRow row)
+    private void KeyEditor_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        EndInlineEdit(row, true);
+    }
+
+    private void StartInlineEdit(RecordingRow row, InlineField field)
     {
         var index = _recordingRows.IndexOf(row);
         if (index < 0)
@@ -419,18 +487,31 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_editingRowIndex.HasValue && _editingRowIndex.Value != index)
+        if (_editingRowIndex.HasValue)
         {
-            var current = _recordingRows.ElementAtOrDefault(_editingRowIndex.Value);
-            if (current is not null)
+            if (_editingRowIndex.Value != index || _activeInlineField != field)
             {
-                EndInlineEdit(current, false);
+                CancelActiveInlineEdit(false);
+            }
+            else
+            {
+                return;
             }
         }
 
-        row.IsEditing = true;
-        row.DelayText = row.DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
         _editingRowIndex = index;
+        _activeInlineField = field;
+        row.IsDelayEditing = field == InlineField.Delay;
+        row.IsKeyEditing = field == InlineField.Key;
+
+        if (field == InlineField.Delay)
+        {
+            row.DelayText = row.DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
+        }
+        else if (field == InlineField.Key)
+        {
+            row.KeyText = row.Key;
+        }
 
         Dispatcher.InvokeAsync(() =>
         {
@@ -440,7 +521,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var editor = FindVisualChild<TextBox>(container, "DelayEditor");
+            var editorName = field == InlineField.Delay ? "DelayEditor" : "KeyEditor";
+            var editor = FindVisualChild<TextBox>(container, editorName);
             if (editor != null)
             {
                 editor.Focus();
@@ -454,37 +536,83 @@ public partial class MainWindow : Window
         var index = _recordingRows.IndexOf(row);
         if (index < 0)
         {
+            ResetInlineState(row);
             return;
         }
 
-        if (commit && int.TryParse(row.DelayText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        switch (_activeInlineField)
         {
-            var clamped = Math.Max(0, parsed);
-            var eventIndex = row.Index - 1;
-            if (eventIndex >= 0 && eventIndex < _recordedEvents.Count)
-            {
-                var existing = _recordedEvents[eventIndex];
-                _recordedEvents[eventIndex] = existing with { DelaySincePrevious = TimeSpan.FromMilliseconds(clamped) };
-            }
+            case InlineField.Delay:
+                if (commit && int.TryParse(row.DelayText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedDelay))
+                {
+                    var clamped = Math.Max(0, parsedDelay);
+                    var eventIndex = row.Index - 1;
+                    if (eventIndex >= 0 && eventIndex < _recordedEvents.Count)
+                    {
+                        var existing = _recordedEvents[eventIndex];
+                        _recordedEvents[eventIndex] = existing with { DelaySincePrevious = TimeSpan.FromMilliseconds(clamped) };
+                    }
 
-            row.SetDelay(clamped);
-            StatusText.Text = $"Updated delay for entry #{row.Index} to {clamped} ms.";
-        }
-        else
-        {
-            row.DelayText = row.DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
+                    row.SetDelay(clamped);
+                    StatusText.Text = $"Updated delay for entry #{row.Index} to {clamped} ms.";
+                }
+                else
+                {
+                    row.DelayText = row.DelayMilliseconds.ToString(CultureInfo.InvariantCulture);
+                }
+
+                row.IsDelayEditing = false;
+                break;
+
+            case InlineField.Key:
+                if (commit)
+                {
+                    if (InlineKeyLabel.TryParse(row.KeyText, out var parsedKey, out var parsedCharacter, out _, out var error))
+                    {
+                        var eventIndex = row.Index - 1;
+                        char? appliedCharacter = parsedCharacter;
+                        if (eventIndex >= 0 && eventIndex < _recordedEvents.Count)
+                        {
+                            var existing = _recordedEvents[eventIndex];
+                            appliedCharacter ??= existing.Character;
+                            _recordedEvents[eventIndex] = new RecordedKeyEvent(parsedKey, existing.DelaySincePrevious, appliedCharacter);
+                        }
+
+                        var displayLabel = InlineKeyLabel.Format(parsedKey, appliedCharacter);
+                        row.SetKey(displayLabel);
+                        StatusText.Text = appliedCharacter.HasValue
+                            ? $"Updated key for entry #{row.Index} to {parsedKey} (\"{appliedCharacter.Value}\")."
+                            : $"Updated key for entry #{row.Index} to {parsedKey}.";
+                    }
+                    else
+                    {
+                        row.KeyText = row.Key;
+                        StatusText.Text = error;
+                    }
+                }
+                else
+                {
+                    row.KeyText = row.Key;
+                }
+
+                row.IsKeyEditing = false;
+                break;
+
+            default:
+                return;
         }
 
-        row.IsEditing = false;
         if (_editingRowIndex == index)
         {
             _editingRowIndex = null;
         }
+
+        _activeInlineField = InlineField.None;
     }
 
     private void CancelActiveInlineEdit(bool commit)
     {
-        if (!_editingRowIndex.HasValue)
+        if (!_editingRowIndex.HasValue || _activeInlineField == InlineField.None)
         {
             return;
         }
@@ -494,6 +622,167 @@ public partial class MainWindow : Window
         {
             EndInlineEdit(row, commit);
         }
+        else
+        {
+            _editingRowIndex = null;
+            _activeInlineField = InlineField.None;
+        }
+    }
+
+    private void ResetInlineState(RecordingRow row)
+    {
+        row.IsDelayEditing = false;
+        row.IsKeyEditing = false;
+        _editingRowIndex = null;
+        _activeInlineField = InlineField.None;
+    }
+
+    private void DragHandle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        _dragStartPoint = e.GetPosition(this);
+        _dragSourceRow = row;
+        e.Handled = true;
+    }
+
+    private void DragHandle_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _dragSourceRow = null;
+        e.Handled = true;
+    }
+
+    private void DragHandle_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _dragSourceRow is null)
+        {
+            return;
+        }
+
+        var currentPosition = e.GetPosition(this);
+        if (Math.Abs(currentPosition.X - _dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(currentPosition.Y - _dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        DragDrop.DoDragDrop((DependencyObject)sender, _dragSourceRow, DragDropEffects.Move);
+        _dragSourceRow = null;
+        e.Handled = true;
+    }
+
+    private void RecordingList_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(RecordingRow)))
+        {
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        }
+    }
+
+    private void RecordingList_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(RecordingRow)))
+        {
+            return;
+        }
+
+        if (sender is not ListView listView)
+        {
+            return;
+        }
+
+        var draggedRow = e.Data.GetData(typeof(RecordingRow)) as RecordingRow;
+        if (draggedRow is null)
+        {
+            return;
+        }
+
+        var dropTargetItem = FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject);
+        var targetRow = dropTargetItem?.DataContext as RecordingRow;
+
+        var oldIndex = _recordingRows.IndexOf(draggedRow);
+        if (oldIndex < 0)
+        {
+            return;
+        }
+
+        var requestedIndex = targetRow != null
+            ? _recordingRows.IndexOf(targetRow)
+            : _recordingRows.Count;
+
+        MoveRecordingRow(oldIndex, requestedIndex);
+        listView.SelectedItem = draggedRow;
+    }
+
+    private void MoveRecordingRow(int oldIndex, int requestedIndex)
+    {
+        if (oldIndex < 0 || oldIndex >= _recordingRows.Count)
+        {
+            return;
+        }
+
+        var upperBound = _recordingRows.Count;
+        var targetIndex = Math.Max(0, Math.Min(requestedIndex, upperBound));
+        if (targetIndex == oldIndex || targetIndex == oldIndex + 1)
+        {
+            return;
+        }
+
+        CancelActiveInlineEdit(true);
+
+        var row = _recordingRows[oldIndex];
+        var recordedEvent = _recordedEvents[oldIndex];
+
+        _recordingRows.RemoveAt(oldIndex);
+        _recordedEvents.RemoveAt(oldIndex);
+
+        if (targetIndex > oldIndex)
+        {
+            targetIndex--;
+        }
+
+        targetIndex = Math.Max(0, Math.Min(targetIndex, _recordingRows.Count));
+
+        _recordingRows.Insert(targetIndex, row);
+        _recordedEvents.Insert(targetIndex, recordedEvent);
+
+        UpdateRowIndexes();
+
+        StatusText.Text = $"Moved entry to position {row.Index}.";
+    }
+
+    private void UpdateRowIndexes()
+    {
+        for (var i = 0; i < _recordingRows.Count; i++)
+        {
+            _recordingRows[i].SetIndex(i + 1);
+        }
+    }
+
+    private enum InlineField
+    {
+        None,
+        Delay,
+        Key
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current != null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent, string name) where T : DependencyObject
@@ -524,20 +813,28 @@ public partial class MainWindow : Window
 
     private sealed class RecordingRow : INotifyPropertyChanged
     {
+        private int _index;
         private string _key;
         private int _delayMilliseconds;
-        private bool _isEditing;
+        private bool _isDelayEditing;
+        private bool _isKeyEditing;
         private string _delayText;
+        private string _keyText;
 
         public RecordingRow(int index, string key, int delayMilliseconds)
         {
-            Index = index;
+            _index = index;
             _key = key;
             _delayMilliseconds = delayMilliseconds;
             _delayText = delayMilliseconds.ToString(CultureInfo.InvariantCulture);
+            _keyText = key;
         }
 
-        public int Index { get; }
+        public int Index
+        {
+            get => _index;
+            private set => SetField(ref _index, value, nameof(Index));
+        }
 
         public string Key
         {
@@ -565,10 +862,22 @@ public partial class MainWindow : Window
             set => SetField(ref _delayText, value, nameof(DelayText));
         }
 
-        public bool IsEditing
+        public string KeyText
         {
-            get => _isEditing;
-            set => SetField(ref _isEditing, value, nameof(IsEditing));
+            get => _keyText;
+            set => SetField(ref _keyText, value, nameof(KeyText));
+        }
+
+        public bool IsDelayEditing
+        {
+            get => _isDelayEditing;
+            set => SetField(ref _isDelayEditing, value, nameof(IsDelayEditing));
+        }
+
+        public bool IsKeyEditing
+        {
+            get => _isKeyEditing;
+            set => SetField(ref _isKeyEditing, value, nameof(IsKeyEditing));
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -579,7 +888,13 @@ public partial class MainWindow : Window
             DelayText = delayMilliseconds.ToString(CultureInfo.InvariantCulture);
         }
 
-        public void SetKey(string key) => Key = key;
+        public void SetKey(string key)
+        {
+            Key = key;
+            KeyText = key;
+        }
+
+        public void SetIndex(int index) => Index = index;
 
         private bool SetField<TValue>(ref TValue field, TValue value, params string[] propertyNames)
         {
