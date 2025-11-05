@@ -1,16 +1,6 @@
 ---
 layout: default
 ---
-
-<div class="hero">
-  <h1>🎹 Repitito</h1>
-  <p class="tagline">The Little Key Repeater that remembers your favorite keyboard moves.</p>
-  <p class="call-to-action">
-    <a class="btn" href="#download">Download</a>
-    <a class="btn secondary" href="https://github.com/mabino/repitito" target="_blank">View on GitHub</a>
-  </p>
-</div>
-
 ## Delightful Features {#delightful-features}
 
 <div class="table-wrapper">
