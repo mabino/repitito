@@ -163,6 +163,7 @@ public partial class MainWindow : Window
 
         CancelActiveInlineEdit(true);
 
+        var deletedIndex = row.Index;
         _recordingRows.RemoveAt(eventIndex);
         _recordedEvents.RemoveAt(eventIndex);
         UpdateRowIndexes();
@@ -177,7 +178,7 @@ public partial class MainWindow : Window
             RecordingList.SelectedItem = _recordingRows[fallbackIndex];
         }
 
-        StatusText.Text = $"Deleted entry #{row.Index}.";
+        StatusText.Text = $"Deleted entry #{deletedIndex}.";
         UpdateUiState();
     }
 
@@ -369,7 +370,7 @@ public partial class MainWindow : Window
             var recordedEvent = _recordedEvents[i];
             var displayKey = InlineKeyLabel.Format(recordedEvent.Key, recordedEvent.Modifiers, recordedEvent.Character);
             var delayMilliseconds = Convert.ToInt32(Math.Round(recordedEvent.DelaySincePrevious.TotalMilliseconds));
-            _recordingRows.Add(new RecordingRow(i + 1, displayKey, delayMilliseconds));
+            _recordingRows.Add(new RecordingRow(i + 1, displayKey, delayMilliseconds, recordedEvent.Comment ?? string.Empty));
         }
     }
 
@@ -417,7 +418,7 @@ public partial class MainWindow : Window
         _recordedEvents.Add(entry);
         var delayMilliseconds = Convert.ToInt32(Math.Round(delay.TotalMilliseconds));
         var displayKey = InlineKeyLabel.Format(entry.Key, entry.Modifiers, entry.Character);
-        var row = new RecordingRow(_recordedEvents.Count, displayKey, delayMilliseconds);
+    var row = new RecordingRow(_recordedEvents.Count, displayKey, delayMilliseconds, entry.Comment ?? string.Empty);
         _recordingRows.Add(row);
         StatusText.Text = $"Captured: {displayKey}. Total {_recordedEvents.Count} keys.";
     }
@@ -574,6 +575,23 @@ public partial class MainWindow : Window
         StartInlineEdit(row, InlineField.Key);
     }
 
+    private void CommentCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_isRecording || _isPlaying)
+        {
+            StatusText.Text = "Finish recording or playback before editing comments.";
+            return;
+        }
+
+        StartInlineEdit(row, InlineField.Comment);
+    }
+
     private void DelayEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
@@ -595,6 +613,26 @@ public partial class MainWindow : Window
     }
 
     private void KeyEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            EndInlineEdit(row, true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            EndInlineEdit(row, false);
+            e.Handled = true;
+        }
+    }
+
+    private void CommentEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
         {
@@ -636,6 +674,17 @@ public partial class MainWindow : Window
         EndInlineEdit(row, true);
     }
 
+    private void CommentEditor_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.DataContext is not RecordingRow row)
+        {
+            return;
+        }
+
+        textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        EndInlineEdit(row, true);
+    }
+
     private void StartInlineEdit(RecordingRow row, InlineField field)
     {
         var index = _recordingRows.IndexOf(row);
@@ -660,6 +709,7 @@ public partial class MainWindow : Window
         _activeInlineField = field;
         row.IsDelayEditing = field == InlineField.Delay;
         row.IsKeyEditing = field == InlineField.Key;
+        row.IsCommentEditing = field == InlineField.Comment;
 
         if (field == InlineField.Delay)
         {
@@ -668,6 +718,10 @@ public partial class MainWindow : Window
         else if (field == InlineField.Key)
         {
             row.KeyText = row.Key;
+        }
+        else if (field == InlineField.Comment)
+        {
+            row.CommentText = row.Comment;
         }
 
         Dispatcher.InvokeAsync(() =>
@@ -678,7 +732,18 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var editorName = field == InlineField.Delay ? "DelayEditor" : "KeyEditor";
+            var editorName = field switch
+            {
+                InlineField.Delay => "DelayEditor",
+                InlineField.Key => "KeyEditor",
+                InlineField.Comment => "CommentEditor",
+                _ => null
+            };
+            if (editorName is null)
+            {
+                return;
+            }
+
             var editor = FindVisualChild<TextBox>(container, editorName);
             if (editor != null)
             {
@@ -758,6 +823,31 @@ public partial class MainWindow : Window
                 row.IsKeyEditing = false;
                 break;
 
+            case InlineField.Comment:
+                if (commit)
+                {
+                    var trimmed = string.IsNullOrWhiteSpace(row.CommentText) ? null : row.CommentText.Trim();
+                    var eventIndex = row.Index - 1;
+                    if (eventIndex >= 0 && eventIndex < _recordedEvents.Count)
+                    {
+                        var existing = _recordedEvents[eventIndex];
+                        _recordedEvents[eventIndex] = existing.WithComment(trimmed);
+                    }
+
+                    var displayComment = trimmed ?? string.Empty;
+                    row.SetComment(displayComment);
+                    StatusText.Text = trimmed is null
+                        ? $"Cleared comment for entry #{row.Index}."
+                        : $"Updated comment for entry #{row.Index}.";
+                }
+                else
+                {
+                    row.CommentText = row.Comment;
+                }
+
+                row.IsCommentEditing = false;
+                break;
+
             default:
                 return;
         }
@@ -793,6 +883,7 @@ public partial class MainWindow : Window
     {
         row.IsDelayEditing = false;
         row.IsKeyEditing = false;
+        row.IsCommentEditing = false;
         _editingRowIndex = null;
         _activeInlineField = InlineField.None;
     }
@@ -936,7 +1027,8 @@ public partial class MainWindow : Window
     {
         None,
         Delay,
-        Key
+        Key,
+        Comment
     }
 
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
@@ -989,14 +1081,19 @@ public partial class MainWindow : Window
         private bool _isKeyEditing;
         private string _delayText;
         private string _keyText;
+        private string _comment;
+        private string _commentText;
+        private bool _isCommentEditing;
 
-        public RecordingRow(int index, string key, int delayMilliseconds)
+        public RecordingRow(int index, string key, int delayMilliseconds, string comment)
         {
             _index = index;
             _key = key;
             _delayMilliseconds = delayMilliseconds;
             _delayText = delayMilliseconds.ToString(CultureInfo.InvariantCulture);
             _keyText = key;
+            _comment = comment;
+            _commentText = comment;
         }
 
         public int Index
@@ -1037,6 +1134,18 @@ public partial class MainWindow : Window
             set => SetField(ref _keyText, value, nameof(KeyText));
         }
 
+        public string Comment
+        {
+            get => _comment;
+            private set => SetField(ref _comment, value, nameof(Comment));
+        }
+
+        public string CommentText
+        {
+            get => _commentText;
+            set => SetField(ref _commentText, value, nameof(CommentText));
+        }
+
         public bool IsDelayEditing
         {
             get => _isDelayEditing;
@@ -1047,6 +1156,12 @@ public partial class MainWindow : Window
         {
             get => _isKeyEditing;
             set => SetField(ref _isKeyEditing, value, nameof(IsKeyEditing));
+        }
+
+        public bool IsCommentEditing
+        {
+            get => _isCommentEditing;
+            set => SetField(ref _isCommentEditing, value, nameof(IsCommentEditing));
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -1061,6 +1176,12 @@ public partial class MainWindow : Window
         {
             Key = key;
             KeyText = key;
+        }
+
+        public void SetComment(string comment)
+        {
+            Comment = comment;
+            CommentText = comment;
         }
 
         public void SetIndex(int index) => Index = index;

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:Repitito"
     mc:Ignorable="d"
-    Title="Repitito" Height="540" Width="940" MinWidth="820" MinHeight="400"
+    Title="Repitito" Height="540" Width="940" MinWidth="820" MinHeight="640"
     PreviewKeyDown="Window_PreviewKeyDown"
     TextInput="Window_TextInput">
     <Grid Margin="12">
@@ -87,6 +87,23 @@
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
+                    <GridViewColumn Header="Comment" Width="220">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid PreviewMouseLeftButtonDown="CommentCell_MouseLeftButtonDown" Background="Transparent">
+                                    <TextBlock x:Name="CommentTextBlock" Text="{Binding Comment}" Padding="2" HorizontalAlignment="Left" TextWrapping="Wrap" />
+                                    <TextBox x:Name="CommentEditor" Text="{Binding CommentText, Mode=TwoWay, UpdateSourceTrigger=Explicit}" Padding="0" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Visibility="Collapsed" PreviewKeyDown="CommentEditor_PreviewKeyDown" LostFocus="CommentEditor_LostFocus" AcceptsReturn="False" />
+                                    <Border Background="Transparent" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsCommentEditing}" Value="True">
+                                        <Setter TargetName="CommentTextBlock" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="CommentEditor" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                 </GridView>
             </ListView.View>
         </ListView>
@@ -106,18 +123,22 @@
 
                 <StackPanel Margin="0 0 0 12">
                     <TextBlock Text="Variance (ms)" />
+                    <TextBlock Text="Adds random delay up to this amount before each key." Margin="0 2 0 0" TextWrapping="Wrap" />
                     <Slider x:Name="VarianceSlider" Minimum="0" Maximum="300" Value="30" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="VarianceSliderChanged" Margin="0 4 0 0" />
                     <TextBlock x:Name="VarianceValueText" Text="30 ms" Margin="0 4 0 0" />
                 </StackPanel>
 
-                <CheckBox x:Name="VarianceJitterCheckBox" Content="Randomize variance amplitude" Checked="VarianceJitterChanged" Unchecked="VarianceJitterChanged" Margin="0 0 0 12" />
+                <CheckBox x:Name="VarianceJitterCheckBox" Content="Randomize variance amplitude" Checked="VarianceJitterChanged" Unchecked="VarianceJitterChanged" Margin="0 0 0 4" />
+                <TextBlock Text="Enables variance jitter, letting the jitter slider adjust how far variance can swing." Margin="0 0 0 12" TextWrapping="Wrap" />
                 <StackPanel Margin="0 0 0 12">
                     <TextBlock Text="Variance jitter (%)" />
+                    <TextBlock Text="Randomizes the variance value by this percentage each time." Margin="0 2 0 0" TextWrapping="Wrap" />
                     <Slider x:Name="JitterSlider" Minimum="0" Maximum="100" Value="20" TickFrequency="5" IsEnabled="False" IsSnapToTickEnabled="True" ValueChanged="JitterSliderChanged" Margin="0 4 0 0" />
                     <TextBlock x:Name="JitterValueText" Text="20 %" Margin="0 4 0 0" />
                 </StackPanel>
                 <StackPanel>
                     <TextBlock Text="Minimum delay (ms)" />
+                    <TextBlock Text="Ensures every key waits at least this long, even after variance." Margin="0 2 0 0" TextWrapping="Wrap" />
                     <Slider x:Name="MinimumDelaySlider" Minimum="0" Maximum="200" Value="5" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="MinimumDelaySliderChanged" Margin="0 4 0 0" />
                     <TextBlock x:Name="MinimumDelayText" Text="5 ms" Margin="0 4 0 0" />
                 </StackPanel>

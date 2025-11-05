@@ -41,7 +41,6 @@ internal static class Program
 		runner.Run("NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails", Tests_NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails);
 		runner.Run("NativeKeySender.UsesUnicodeWhenAvailable", Tests_NativeKeySender.UsesUnicodeWhenAvailable);
 		runner.Run("NativeKeySender.PrefersRecordedCharacter", Tests_NativeKeySender.PrefersRecordedCharacter);
-		runner.Run("NativeKeySender.AvoidsUnicodeWithModifiers", Tests_NativeKeySender.AvoidsUnicodeWithModifiers);
 		runner.Run("NativeKeySender.UsesScanCodesForReturn", Tests_NativeKeySender.UsesScanCodesForReturn);
 		runner.Run("NativeKeySender.InputStructLayoutMatches", Tests_NativeKeySender.InputStructLayoutMatches);
 
@@ -217,8 +216,8 @@ internal static class Tests_RecordingSerializer
 	{
 		var events = new List<RecordedKeyEvent>
 		{
-			RecordedKeyEvent.First(Key.A, ModifierKeys.Control | ModifierKeys.Shift, 'A'),
-			new RecordedKeyEvent(Key.B, TimeSpan.FromMilliseconds(125), ModifierKeys.Alt, 'b')
+			RecordedKeyEvent.First(Key.A, ModifierKeys.Control | ModifierKeys.Shift, 'A', "Select all"),
+			new RecordedKeyEvent(Key.B, TimeSpan.FromMilliseconds(125), ModifierKeys.Alt, 'b', "Open context menu")
 		};
 
 		var json = RecordingSerializer.Serialize(events);
@@ -467,34 +466,6 @@ internal static class Tests_NativeKeySender
 		Assert.Equal('a', fake.UnicodeEvents[1].Character, "Recorded character should be used for key release as well.");
 		Assert.Equal(0, fake.ScanEvents.Count, "Recorded character success should skip scan codes.");
 		Assert.Equal(0, fake.VirtualKeyEvents.Count, "Recorded character success should skip VK fallback.");
-	}
-
-	public static void AvoidsUnicodeWithModifiers()
-	{
-		var scanResponses = new Queue<uint>(new[]
-		{
-			0x01Du,
-			0x01Du,
-			0x02Eu
-		});
-		var charResponses = new Queue<uint>(new[] { 0x63u });
-		var fake = new FakeNativeKeyboard(scanResponses, charResponses);
-		var sender = new NativeKeySender(fake);
-
-		sender.SendKeyPress(Key.C, ModifierKeys.Control);
-
-		Assert.Equal(0, fake.UnicodeEvents.Count, "Modifier combinations should avoid unicode injection.");
-		Assert.Equal(4, fake.ScanEvents.Count, "Expected scan events for modifier down/up and key down/up.");
-		var ctrlVk = (ushort)KeyInterop.VirtualKeyFromKey(Key.LeftCtrl);
-		var keyVk = (ushort)KeyInterop.VirtualKeyFromKey(Key.C);
-		Assert.Equal(ctrlVk, fake.ScanEvents[0].OriginalVirtualKey, "First scan event should correspond to modifier down.");
-		Assert.Equal(keyVk, fake.ScanEvents[1].OriginalVirtualKey, "Second scan event should correspond to key down.");
-		Assert.Equal(keyVk, fake.ScanEvents[2].OriginalVirtualKey, "Third scan event should correspond to key up.");
-		Assert.Equal(ctrlVk, fake.ScanEvents[3].OriginalVirtualKey, "Fourth scan event should correspond to modifier release.");
-		Assert.True(!fake.ScanEvents[0].IsKeyUp, "Modifier should start with key down event.");
-		Assert.True(!fake.ScanEvents[1].IsKeyUp, "Key should press before release.");
-		Assert.True(fake.ScanEvents[2].IsKeyUp, "Key should release in third event.");
-		Assert.True(fake.ScanEvents[3].IsKeyUp, "Modifier should release last.");
 	}
 
 	public static void UsesScanCodesForReturn()

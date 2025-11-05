@@ -38,7 +38,8 @@ public static class RecordingSerializer
                 Key = e.Key.ToString(),
                 Modifiers = CollectModifierNames(e.Modifiers).ToList(),
                 DelayMilliseconds = (int)Math.Max(0, Math.Round(e.DelaySincePrevious.TotalMilliseconds)),
-                Character = e.Character.HasValue ? e.Character.Value.ToString() : null
+                Character = e.Character.HasValue ? e.Character.Value.ToString() : null,
+                Comment = string.IsNullOrWhiteSpace(e.Comment) ? null : e.Comment
             }).ToList()
         };
 
@@ -139,7 +140,8 @@ public static class RecordingSerializer
                 character = entry.Character[0];
             }
 
-            events.Add(new RecordedKeyEvent(key, TimeSpan.FromMilliseconds(entry.DelayMilliseconds), modifiers, character));
+            var comment = string.IsNullOrWhiteSpace(entry.Comment) ? null : entry.Comment;
+            events.Add(new RecordedKeyEvent(key, TimeSpan.FromMilliseconds(entry.DelayMilliseconds), modifiers, character, comment));
         }
 
         return true;
@@ -231,5 +233,7 @@ public static class RecordingSerializer
         public int DelayMilliseconds { get; set; }
 
         public string? Character { get; set; }
+
+        public string? Comment { get; set; }
     }
 }
