@@ -1,0 +1,11 @@
+bin/
+obj/
+dist/
+dist-test/
+KeyPlaybackApp/Assets/Icons/png/
+.bundle/
+vendor/
+_site/
+node_modules/
+.git
+.gitignore

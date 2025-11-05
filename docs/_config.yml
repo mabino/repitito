@@ -1,21 +1,16 @@
 title: "Repitito"
 tagline: "The Little Key Repeater"
-description: "Capture keyboard magic once and replay it any time."
+description: "Capture keyboard input once and replay it any time."
 url: "https://mabino.github.io/repitito"
 repository: "mabino/repitito"
 remote_theme: pages-themes/cayman@v0.2.0
 plugins:
   - jekyll-remote-theme
 show_downloads: true
-social:
-  github: https://github.com/mabino/repitito
-  twitter: https://twitter.com/search?q=%23repitito
 nav:
   - text: "Home"
     url: /
   - text: "Getting Started"
     url: /#getting-started
   - text: "Features"
-    url: /#delightful-features
-  - text: "Download"
-    url: /#download
+    url: /#features

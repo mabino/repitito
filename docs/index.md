@@ -1,20 +1,19 @@
 ---
 layout: default
 ---
-## Delightful Features {#delightful-features}
 
-<div class="table-wrapper">
+# Repitito
 
-| ✨ | Feature | Why you will love it |
-| --- | --- | --- |
-| 🎬 | One-click record & replay | Capture timings, characters, and modifier combos, then play them back perfectly. |
-| 🎛️ | Inline editing galore | Fix keys, tweak delays, or jot a comment without leaving the table. |
-| 🎲 | Playful randomness | Speed, variance, and jitter controls keep your macros feeling human. |
-| 🧲 | Global hotkey | Tap <kbd>F8</kbd> from anywhere to start or stop playback. |
-| 🧷 | Import & export | Share recordings as tidy JSON files with schema validation. |
-| 🛡️ | Thorough tests | A custom test harness keeps the SendInput wizardry reliable. |
+🎹 Repitito is a Windows desktop application that captures keyboard input and replays it on demand.
 
-</div>
+## Features {#features}
+
+- 🎬 **One-click record & replay** – Capture timings, characters, and modifier combos, then play them back perfectly.
+- 🎛️ **Inline editing galore** – Fix keys, tweak delays, or jot a comment without leaving the table.
+- 🎲 **Playful randomness** – Speed, variance, and jitter controls keep your macros feeling human.
+- 🧲 **Global hotkey** – Tap <kbd>F8</kbd> from anywhere to start or stop playback.
+- 🧷 **Import & export** – Share recordings as tidy JSON files with schema validation.
+- 🛡️ **Thorough tests** – A custom test harness keeps the SendInput wizardry reliable.
 
 ## Getting Started {#getting-started}
 
@@ -27,23 +26,4 @@ layout: default
 
 > Tip: Use the **Delete Row** button or drag handles to curate your playlist of key events.
 
-## Download {#download}
-
-Once GitHub Pages is enabled, we will publish self-contained builds here. For now you can polish your own release with the packaging script.
-
-- 📦 `pwsh -File scripts/package.ps1 -Configuration Release -Runtime win-x64`
-- 🎯 Output lands in the `dist` folder (customizable via `-Output`)
-
-## Screenshots
-
-![Repitito main window](images/placeholder.svg)
-
-*Coming soon! We are busy capturing colorful snapshots.*
-
-## Stay in the Loop
-
-- ⭐ Star the project on [GitHub](https://github.com/mabino/repitito)
-- 🐦 Follow the `#repitito` tag on social media
-- 🧪 Run `pwsh -File scripts/test.ps1` to make sure everything stays green
-
-<div class="footer-note">Made with joy, caffeine, and an ever-so-curious keyboard.</div>
+<div class="footer-note">Made with AFK in mind.</div>

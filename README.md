@@ -53,6 +53,16 @@ The `scripts/` directory provides convenience wrappers for common tasks:
 - `scripts/package.ps1` – publishes distributable binaries (self-contained single file by default, configurable via `-FrameworkDependent` or `-DisableSingleFile`).
 - `scripts/generate-icon.ps1` – renders the 🎹 glyph into multi-resolution PNGs and bundles them into `KeyPlaybackApp/Assets/Icons/Repitito.ico`.
 
+### Previewing the Docs Site with Docker
+
+To build or live-serve the Jekyll site locally without installing Ruby, use the provided Docker configuration:
+
+```pwsh
+docker compose up --build
+```
+
+This will install the required gems inside the container, watch `docs/`, and expose the site at `http://localhost:4000` (LiveReload on `35729`). Stop with `Ctrl+C` when you're done.
+
 Run them with PowerShell from the repository root, for example:
 
 ```pwsh

@@ -22,6 +22,7 @@ artifacts/
 dist-test/
 dist/
 KeyPlaybackApp/Assets/Icons/png/
+docs/Gemfile.lock
 
 # VS Code
 .vscode/
