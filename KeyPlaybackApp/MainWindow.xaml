@@ -122,27 +122,33 @@
                     <TextBlock x:Name="SpeedValueText" Text="1.0x" Margin="0 4 0 0" />
                 </StackPanel>
 
-                <StackPanel Margin="0 0 0 12">
-                    <TextBlock Text="Variance (ms)" />
-                    <TextBlock Text="Adds random delay up to this amount before each key." Margin="0 2 0 0" TextWrapping="Wrap" />
-                    <Slider x:Name="VarianceSlider" Minimum="0" Maximum="300" Value="30" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="VarianceSliderChanged" Margin="0 4 0 0" />
-                    <TextBlock x:Name="VarianceValueText" Text="30 ms" Margin="0 4 0 0" />
-                </StackPanel>
+                <GroupBox Header="Advanced" Margin="0 0 0 12">
+                    <StackPanel Margin="12">
+                        <StackPanel Margin="0 0 0 12">
+                            <TextBlock Text="Variance (ms)" />
+                            <TextBlock Text="Adds random delay up to this amount before each key." Margin="0 2 0 0" TextWrapping="Wrap" />
+                            <Slider x:Name="VarianceSlider" Minimum="0" Maximum="300" Value="30" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="VarianceSliderChanged" Margin="0 4 0 0" />
+                            <TextBlock x:Name="VarianceValueText" Text="30 ms" Margin="0 4 0 0" />
+                        </StackPanel>
 
-                <CheckBox x:Name="VarianceJitterCheckBox" Content="Randomize variance amplitude" Checked="VarianceJitterChanged" Unchecked="VarianceJitterChanged" Margin="0 0 0 4" />
-                <TextBlock Text="Enables variance jitter, letting the jitter slider adjust how far variance can swing." Margin="0 0 0 12" TextWrapping="Wrap" />
-                <StackPanel Margin="0 0 0 12">
-                    <TextBlock Text="Variance jitter (%)" />
-                    <TextBlock Text="Randomizes the variance value by this percentage each time." Margin="0 2 0 0" TextWrapping="Wrap" />
-                    <Slider x:Name="JitterSlider" Minimum="0" Maximum="100" Value="20" TickFrequency="5" IsEnabled="False" IsSnapToTickEnabled="True" ValueChanged="JitterSliderChanged" Margin="0 4 0 0" />
-                    <TextBlock x:Name="JitterValueText" Text="20 %" Margin="0 4 0 0" />
-                </StackPanel>
-                <StackPanel>
-                    <TextBlock Text="Minimum delay (ms)" />
-                    <TextBlock Text="Ensures every key waits at least this long, even after variance." Margin="0 2 0 0" TextWrapping="Wrap" />
-                    <Slider x:Name="MinimumDelaySlider" Minimum="0" Maximum="200" Value="5" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="MinimumDelaySliderChanged" Margin="0 4 0 0" />
-                    <TextBlock x:Name="MinimumDelayText" Text="5 ms" Margin="0 4 0 0" />
-                </StackPanel>
+                        <CheckBox x:Name="VarianceJitterCheckBox" Content="Randomize variance amplitude" Checked="VarianceJitterChanged" Unchecked="VarianceJitterChanged" Margin="0 0 0 4" />
+                        <TextBlock Text="Enables variance jitter, letting the jitter slider adjust how far variance can swing." Margin="0 0 0 12" TextWrapping="Wrap" />
+
+                        <StackPanel Margin="0 0 0 12">
+                            <TextBlock Text="Variance jitter (%)" />
+                            <TextBlock Text="Randomizes the variance value by this percentage each time." Margin="0 2 0 0" TextWrapping="Wrap" />
+                            <Slider x:Name="JitterSlider" Minimum="0" Maximum="100" Value="20" TickFrequency="5" IsEnabled="False" IsSnapToTickEnabled="True" ValueChanged="JitterSliderChanged" Margin="0 4 0 0" />
+                            <TextBlock x:Name="JitterValueText" Text="20 %" Margin="0 4 0 0" />
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock Text="Minimum delay (ms)" />
+                            <TextBlock Text="Ensures every key waits at least this long, even after variance." Margin="0 2 0 0" TextWrapping="Wrap" />
+                            <Slider x:Name="MinimumDelaySlider" Minimum="0" Maximum="200" Value="5" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="MinimumDelaySliderChanged" Margin="0 4 0 0" />
+                            <TextBlock x:Name="MinimumDelayText" Text="5 ms" Margin="0 4 0 0" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
             </StackPanel>
         </GroupBox>
     </Grid>
