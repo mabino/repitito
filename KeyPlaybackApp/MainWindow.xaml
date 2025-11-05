@@ -5,12 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:Repitito"
     mc:Ignorable="d"
-    Title="Repitito" Height="540" Width="940" MinWidth="1060" MinHeight="400"
+    Title="Repitito" Height="540" Width="940" MinWidth="820" MinHeight="400"
     PreviewKeyDown="Window_PreviewKeyDown"
     TextInput="Window_TextInput">
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" MinWidth="720" />
+            <ColumnDefinition Width="*" MinWidth="480" />
             <ColumnDefinition Width="300" />
         </Grid.ColumnDefinitions>
 
@@ -25,17 +25,22 @@
             <TextBlock x:Name="RecordingHintText" Text="Press Start Recording to capture key presses." Margin="0 4 0 0" />
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Grid.Column="0" Grid.Row="0" Margin="0 48 12 12" HorizontalAlignment="Left">
-            <Button x:Name="StartRecordingButton" Content="Start Recording" Width="120" Click="StartRecording" Margin="0 0 8 0" />
-            <Button x:Name="StopRecordingButton" Content="Stop" Width="80" Click="StopRecording" IsEnabled="False" Margin="0 0 8 0" />
-            <Button x:Name="ClearRecordingButton" Content="Clear" Width="80" Click="ClearRecording" Margin="0 0 8 0" />
-            <Button x:Name="ImportRecordingButton" Content="Import..." Width="90" Click="ImportRecording" Margin="0 0 8 0" />
-            <Button x:Name="ExportRecordingButton" Content="Export..." Width="90" Click="ExportRecording" Margin="0 0 8 0" />
-            <Button x:Name="PlaybackButton" Content="Play (F8)" Width="90" Click="Playback" Margin="0 0 8 0" />
-            <Button x:Name="CancelPlaybackButton" Content="Cancel" Width="80" Click="CancelPlayback" IsEnabled="False" />
+        <StackPanel Orientation="Vertical" Grid.Column="0" Grid.Row="0" Margin="0 48 12 12" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal" Margin="0 0 0 4">
+                <Button x:Name="StartRecordingButton" Content="Start Recording" Width="120" Click="StartRecording" Margin="0 0 8 0" />
+                <Button x:Name="StopRecordingButton" Content="Stop" Width="80" Click="StopRecording" IsEnabled="False" Margin="0 0 8 0" />
+                <Button x:Name="DeleteRowButton" Content="Delete Row" Width="100" Click="DeleteRow" IsEnabled="False" Margin="0 0 8 0" />
+                <Button x:Name="ClearRecordingButton" Content="Clear" Width="80" Click="ClearRecording" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="PlaybackButton" Content="Play (F8)" Width="90" Click="Playback" Margin="0 0 8 0" />
+                <Button x:Name="ImportRecordingButton" Content="Import..." Width="90" Click="ImportRecording" Margin="0 0 8 0" />
+                <Button x:Name="ExportRecordingButton" Content="Export..." Width="90" Click="ExportRecording" Margin="0 0 8 0" />
+                <Button x:Name="CancelPlaybackButton" Content="Cancel" Width="80" Click="CancelPlayback" IsEnabled="False" />
+            </StackPanel>
         </StackPanel>
 
-    <ListView Grid.Column="0" Grid.Row="1" x:Name="RecordingList" Margin="0 8 12 12" AllowDrop="True" DragOver="RecordingList_DragOver" Drop="RecordingList_Drop">
+    <ListView Grid.Column="0" Grid.Row="1" x:Name="RecordingList" Margin="0 8 12 12" AllowDrop="True" DragOver="RecordingList_DragOver" Drop="RecordingList_Drop" SelectionChanged="RecordingList_SelectionChanged">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="" Width="36">

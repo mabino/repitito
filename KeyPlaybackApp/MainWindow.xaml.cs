@@ -138,7 +138,46 @@ public partial class MainWindow : Window
         CancelActiveInlineEdit(false);
         _recordedEvents.Clear();
         _recordingRows.Clear();
+        RecordingList.SelectedItem = null;
         StatusText.Text = "Recording cleared.";
+        UpdateUiState();
+    }
+
+    private void DeleteRow(object sender, RoutedEventArgs e)
+    {
+        if (_isRecording || _isPlaying)
+        {
+            return;
+        }
+
+        if (RecordingList.SelectedItem is not RecordingRow row)
+        {
+            return;
+        }
+
+        var eventIndex = row.Index - 1;
+        if (eventIndex < 0 || eventIndex >= _recordedEvents.Count)
+        {
+            return;
+        }
+
+        CancelActiveInlineEdit(true);
+
+        _recordingRows.RemoveAt(eventIndex);
+        _recordedEvents.RemoveAt(eventIndex);
+        UpdateRowIndexes();
+
+        if (_recordingRows.Count == 0)
+        {
+            RecordingList.SelectedItem = null;
+        }
+        else
+        {
+            var fallbackIndex = Math.Min(eventIndex, _recordingRows.Count - 1);
+            RecordingList.SelectedItem = _recordingRows[fallbackIndex];
+        }
+
+        StatusText.Text = $"Deleted entry #{row.Index}.";
         UpdateUiState();
     }
 
@@ -318,6 +357,8 @@ public partial class MainWindow : Window
         RebuildRecordingRows();
         _stopwatch.Reset();
         _lastRecordedElapsed = TimeSpan.Zero;
+        RecordingList.SelectedItem = _recordingRows.Count > 0 ? _recordingRows[0] : null;
+        UpdateUiState();
     }
 
     private void RebuildRecordingRows()
@@ -475,6 +516,7 @@ public partial class MainWindow : Window
         PlaybackButton.IsEnabled = !_isRecording && !_isPlaying && _recordedEvents.Count > 0;
         CancelPlaybackButton.IsEnabled = _isPlaying;
         ClearRecordingButton.IsEnabled = !_isRecording && !_isPlaying && _recordedEvents.Count > 0;
+        DeleteRowButton.IsEnabled = !_isRecording && !_isPlaying && RecordingList.SelectedItem is RecordingRow;
         LoopPlaybackCheckBox.IsEnabled = !_isRecording && !_isPlaying;
         RandomizeOrderCheckBox.IsEnabled = !_isRecording && !_isPlaying;
         SpeedSlider.IsEnabled = !_isRecording;
@@ -485,6 +527,8 @@ public partial class MainWindow : Window
         ImportRecordingButton.IsEnabled = !_isRecording && !_isPlaying;
         ExportRecordingButton.IsEnabled = !_isRecording && !_isPlaying && _recordedEvents.Count > 0;
     }
+
+    private void RecordingList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateUiState();
 
     private void DelayCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
