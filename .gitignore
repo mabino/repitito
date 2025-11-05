@@ -20,6 +20,7 @@ artifacts/
 
 # Local publish output
 dist-test/
+KeyPlaybackApp/Assets/Icons/png/
 
 # VS Code
 .vscode/

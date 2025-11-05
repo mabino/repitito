@@ -51,6 +51,7 @@ The `scripts/` directory provides convenience wrappers for common tasks:
 - `scripts/test.ps1` – runs the console-based test harness.
 - `scripts/run.ps1` – launches the WPF application, optionally skipping restore with `-NoRestore`.
 - `scripts/package.ps1` – publishes distributable binaries (self-contained single file by default, configurable via `-FrameworkDependent` or `-DisableSingleFile`).
+- `scripts/generate-icon.ps1` – renders the 🎹 glyph into multi-resolution PNGs and bundles them into `KeyPlaybackApp/Assets/Icons/Repitito.ico`.
 
 Run them with PowerShell from the repository root, for example:
 

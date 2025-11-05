@@ -6,6 +6,7 @@
     xmlns:local="clr-namespace:Repitito"
     mc:Ignorable="d"
     Title="Repitito" Height="540" Width="940" MinWidth="820" MinHeight="640"
+    Icon="pack://application:,,,/Assets/Icons/Repitito.ico"
     PreviewKeyDown="Window_PreviewKeyDown"
     TextInput="Window_TextInput">
     <Grid Margin="12">
@@ -90,7 +91,7 @@
                     <GridViewColumn Header="Comment" Width="220">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
-                                <Grid PreviewMouseLeftButtonDown="CommentCell_MouseLeftButtonDown" Background="Transparent">
+                                <Grid PreviewMouseLeftButtonDown="CommentCell_MouseLeftButtonDown">
                                     <TextBlock x:Name="CommentTextBlock" Text="{Binding Comment}" Padding="2" HorizontalAlignment="Left" TextWrapping="Wrap" />
                                     <TextBox x:Name="CommentEditor" Text="{Binding CommentText, Mode=TwoWay, UpdateSourceTrigger=Explicit}" Padding="0" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Visibility="Collapsed" PreviewKeyDown="CommentEditor_PreviewKeyDown" LostFocus="CommentEditor_LostFocus" AcceptsReturn="False" />
                                     <Border Background="Transparent" />
