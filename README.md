@@ -43,6 +43,21 @@ The solution includes a custom console-based test runner. Execute it via:
  dotnet run --project KeyPlaybackApp.Tests/KeyPlaybackApp.Tests.csproj
 ```
 
+### Automation Scripts
+
+The `scripts/` directory provides convenience wrappers for common tasks:
+
+- `scripts/build.ps1` – restores and builds the entire solution (accepts `-Configuration`).
+- `scripts/test.ps1` – runs the console-based test harness.
+- `scripts/run.ps1` – launches the WPF application, optionally skipping restore with `-NoRestore`.
+- `scripts/package.ps1` – publishes distributable binaries (self-contained single file by default, configurable via `-FrameworkDependent` or `-DisableSingleFile`).
+
+Run them with PowerShell from the repository root, for example:
+
+```pwsh
+pwsh -File scripts/package.ps1 -Configuration Release -Runtime win-x64
+```
+
 ## Project Structure
 
 - `KeyPlaybackApp/` – WPF application (uses namespaces under `Repitito.*`).
