@@ -7,5 +7,5 @@ namespace Repitito.Services;
 /// </summary>
 public interface IKeySender
 {
-    void SendKeyPress(Key key, char? recordedCharacter = null);
+    void SendKeyPress(Key key, ModifierKeys modifiers, char? recordedCharacter = null);
 }

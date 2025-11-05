@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using Repitito.Core;
 using Repitito.Services;
 
@@ -140,6 +142,85 @@ public partial class MainWindow : Window
         UpdateUiState();
     }
 
+    private void ImportRecording(object sender, RoutedEventArgs e)
+    {
+        if (_isRecording || _isPlaying)
+        {
+            StatusText.Text = "Stop recording or playback before importing.";
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Repitito recordings (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Import Recording"
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            StatusText.Text = "Import cancelled.";
+            return;
+        }
+
+        string json;
+        try
+        {
+            json = File.ReadAllText(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Failed to read recording: " + ex.Message;
+            return;
+        }
+
+        if (!RecordingSerializer.TryDeserialize(json, out var events, out var error))
+        {
+            MessageBox.Show(this, error, "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = "Import failed.";
+            return;
+        }
+
+        ApplyRecording(events);
+        StatusText.Text = $"Imported {events.Count} entries from {Path.GetFileName(dialog.FileName)}.";
+        UpdateUiState();
+    }
+
+    private void ExportRecording(object sender, RoutedEventArgs e)
+    {
+        if (_recordedEvents.Count == 0)
+        {
+            StatusText.Text = "Nothing to export.";
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Filter = "Repitito recordings (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Export Recording",
+            FileName = "recording.json"
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            StatusText.Text = "Export cancelled.";
+            return;
+        }
+
+        var payload = RecordingSerializer.Serialize(_recordedEvents);
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, payload);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Failed to write recording: " + ex.Message;
+            return;
+        }
+
+        StatusText.Text = $"Recording saved to {Path.GetFileName(dialog.FileName)}.";
+    }
+
     private async void Playback(object sender, RoutedEventArgs e)
     {
         if (_recordedEvents.Count == 0)
@@ -229,6 +310,28 @@ public partial class MainWindow : Window
 
     private void CancelPlaybackFromHotKey() => CancelPlayback(this, new RoutedEventArgs());
 
+    private void ApplyRecording(IReadOnlyList<RecordedKeyEvent> events)
+    {
+        CancelActiveInlineEdit(false);
+        _recordedEvents.Clear();
+        _recordedEvents.AddRange(events);
+        RebuildRecordingRows();
+        _stopwatch.Reset();
+        _lastRecordedElapsed = TimeSpan.Zero;
+    }
+
+    private void RebuildRecordingRows()
+    {
+        _recordingRows.Clear();
+        for (var i = 0; i < _recordedEvents.Count; i++)
+        {
+            var recordedEvent = _recordedEvents[i];
+            var displayKey = InlineKeyLabel.Format(recordedEvent.Key, recordedEvent.Modifiers, recordedEvent.Character);
+            var delayMilliseconds = Convert.ToInt32(Math.Round(recordedEvent.DelaySincePrevious.TotalMilliseconds));
+            _recordingRows.Add(new RecordingRow(i + 1, displayKey, delayMilliseconds));
+        }
+    }
+
     private PlaybackSettings BuildSettings()
     {
         var settings = new PlaybackSettings
@@ -252,6 +355,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var modifiers = Keyboard.Modifiers;
+        var keyModifier = ToModifierFlag(key);
+        if (keyModifier != ModifierKeys.None)
+        {
+            modifiers &= ~keyModifier;
+        }
+
         var currentElapsed = _stopwatch.Elapsed;
         var delay = _recordedEvents.Count == 0
             ? TimeSpan.Zero
@@ -259,15 +370,15 @@ public partial class MainWindow : Window
 
         _lastRecordedElapsed = currentElapsed;
         var entry = _recordedEvents.Count == 0
-            ? RecordedKeyEvent.First(e.Key)
-            : new RecordedKeyEvent(e.Key, delay);
+            ? RecordedKeyEvent.First(key, modifiers)
+            : new RecordedKeyEvent(key, delay, modifiers);
 
         _recordedEvents.Add(entry);
         var delayMilliseconds = Convert.ToInt32(Math.Round(delay.TotalMilliseconds));
-    var displayKey = InlineKeyLabel.Format(entry.Key, entry.Character);
+        var displayKey = InlineKeyLabel.Format(entry.Key, entry.Modifiers, entry.Character);
         var row = new RecordingRow(_recordedEvents.Count, displayKey, delayMilliseconds);
         _recordingRows.Add(row);
-        StatusText.Text = $"Captured: {entry.Key}. Total {_recordedEvents.Count} keys.";
+        StatusText.Text = $"Captured: {displayKey}. Total {_recordedEvents.Count} keys.";
     }
 
     private void Window_TextInput(object sender, TextCompositionEventArgs e)
@@ -301,10 +412,10 @@ public partial class MainWindow : Window
         }
 
         _recordedEvents[lastIndex] = lastEvent.WithCharacter(character);
-    var displayKey = InlineKeyLabel.Format(lastEvent.Key, character);
+        var displayKey = InlineKeyLabel.Format(lastEvent.Key, lastEvent.Modifiers, character);
         _recordingRows[lastIndex].SetKey(displayKey);
 
-        StatusText.Text = $"Captured: {lastEvent.Key} (\"{character}\"). Total {_recordedEvents.Count} keys.";
+        StatusText.Text = $"Captured: {displayKey}. Total {_recordedEvents.Count} keys.";
     }
 
     private void SpeedSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -371,6 +482,8 @@ public partial class MainWindow : Window
         VarianceJitterCheckBox.IsEnabled = !_isRecording;
         JitterSlider.IsEnabled = !_isRecording && VarianceJitterCheckBox.IsChecked == true;
         MinimumDelaySlider.IsEnabled = !_isRecording;
+        ImportRecordingButton.IsEnabled = !_isRecording && !_isPlaying;
+        ExportRecordingButton.IsEnabled = !_isRecording && !_isPlaying && _recordedEvents.Count > 0;
     }
 
     private void DelayCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -567,22 +680,25 @@ public partial class MainWindow : Window
             case InlineField.Key:
                 if (commit)
                 {
-                    if (InlineKeyLabel.TryParse(row.KeyText, out var parsedKey, out var parsedCharacter, out _, out var error))
+                    if (InlineKeyLabel.TryParse(row.KeyText, out var parsedKey, out var parsedModifiers, out var parsedCharacter, out var displayLabel, out var error))
                     {
                         var eventIndex = row.Index - 1;
-                        char? appliedCharacter = parsedCharacter;
                         if (eventIndex >= 0 && eventIndex < _recordedEvents.Count)
                         {
                             var existing = _recordedEvents[eventIndex];
-                            appliedCharacter ??= existing.Character;
-                            _recordedEvents[eventIndex] = new RecordedKeyEvent(parsedKey, existing.DelaySincePrevious, appliedCharacter);
+                            var appliedCharacter = parsedCharacter ?? existing.Character;
+                            var updated = existing with
+                            {
+                                Key = parsedKey,
+                                Modifiers = parsedModifiers,
+                                Character = appliedCharacter
+                            };
+                            _recordedEvents[eventIndex] = updated;
+                            displayLabel = InlineKeyLabel.Format(parsedKey, parsedModifiers, appliedCharacter);
                         }
 
-                        var displayLabel = InlineKeyLabel.Format(parsedKey, appliedCharacter);
                         row.SetKey(displayLabel);
-                        StatusText.Text = appliedCharacter.HasValue
-                            ? $"Updated key for entry #{row.Index} to {parsedKey} (\"{appliedCharacter.Value}\")."
-                            : $"Updated key for entry #{row.Index} to {parsedKey}.";
+                        StatusText.Text = $"Updated key for entry #{row.Index} to {displayLabel}.";
                     }
                     else
                     {
@@ -636,6 +752,15 @@ public partial class MainWindow : Window
         _editingRowIndex = null;
         _activeInlineField = InlineField.None;
     }
+
+    private static ModifierKeys ToModifierFlag(Key key) => key switch
+    {
+        Key.LeftCtrl or Key.RightCtrl => ModifierKeys.Control,
+        Key.LeftShift or Key.RightShift => ModifierKeys.Shift,
+        Key.LeftAlt or Key.RightAlt => ModifierKeys.Alt,
+        Key.LWin or Key.RWin => ModifierKeys.Windows,
+        _ => ModifierKeys.None
+    };
 
     private void DragHandle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

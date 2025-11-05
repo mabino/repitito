@@ -26,6 +26,9 @@ internal static class Program
 		runner.Run("InlineKeyLabel.ParsesKeyWithCharacter", Tests_InlineKeyLabel.ParsesKeyWithCharacter);
 		runner.Run("InlineKeyLabel.RejectsInvalidKey", Tests_InlineKeyLabel.RejectsInvalidKey);
 		runner.Run("InlineKeyLabel.RejectsBadCharacterLiteral", Tests_InlineKeyLabel.RejectsBadCharacterLiteral);
+		runner.Run("RecordingSerializer.RoundTripsRecording", Tests_RecordingSerializer.RoundTripsRecording);
+		runner.Run("RecordingSerializer.RejectsInvalidKey", Tests_RecordingSerializer.RejectsInvalidKey);
+		runner.Run("RecordingSerializer.RejectsUnknownModifier", Tests_RecordingSerializer.RejectsUnknownModifier);
 		runner.RunAsync("PlaybackService.DispatchesKeys", Tests_PlaybackService.DispatchesKeys).GetAwaiter().GetResult();
 		runner.RunAsync("PlaybackService.LoopsUntilCancelled", Tests_PlaybackService.LoopsUntilCancelled).GetAwaiter().GetResult();
 		runner.Run("PlaybackHotKeyController.StartsPlaybackWhenIdle", Tests_PlaybackHotKeyController.StartsPlaybackWhenIdle);
@@ -38,6 +41,7 @@ internal static class Program
 		runner.Run("NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails", Tests_NativeKeySender.FallsBackToUnicodeWhenVirtualKeyFails);
 		runner.Run("NativeKeySender.UsesUnicodeWhenAvailable", Tests_NativeKeySender.UsesUnicodeWhenAvailable);
 		runner.Run("NativeKeySender.PrefersRecordedCharacter", Tests_NativeKeySender.PrefersRecordedCharacter);
+		runner.Run("NativeKeySender.AvoidsUnicodeWithModifiers", Tests_NativeKeySender.AvoidsUnicodeWithModifiers);
 		runner.Run("NativeKeySender.UsesScanCodesForReturn", Tests_NativeKeySender.UsesScanCodesForReturn);
 		runner.Run("NativeKeySender.InputStructLayoutMatches", Tests_NativeKeySender.InputStructLayoutMatches);
 
@@ -150,8 +154,8 @@ internal static class Tests_KeySequencePlanner
 	{
 		var events = new[]
 		{
-			RecordedKeyEvent.First(Key.A, 'a'),
-			new RecordedKeyEvent(Key.B, TimeSpan.FromMilliseconds(120), 'B')
+			RecordedKeyEvent.First(Key.A, character: 'a'),
+			new RecordedKeyEvent(Key.B, TimeSpan.FromMilliseconds(120), ModifierKeys.None, 'B')
 		};
 
 		var planner = new KeySequencePlanner(new DeterministicRandomSource());
@@ -172,36 +176,76 @@ internal static class Tests_InlineKeyLabel
 {
 	public static void ParsesKeyWithoutCharacter()
 	{
-		var success = InlineKeyLabel.TryParse("Enter", out var key, out var character, out var label, out var error);
+		var success = InlineKeyLabel.TryParse("Enter", out var key, out var modifiers, out var character, out var label, out var error);
 		Assert.True(success, "Enter should parse successfully.");
 		Assert.Equal(Key.Enter, key, "Parsed key should be Enter.");
+		Assert.Equal(ModifierKeys.None, modifiers, "No modifiers expected.");
 		Assert.True(character is null, "Character should be null when not provided.");
-		Assert.Equal(InlineKeyLabel.Format(Key.Enter, null), label, "Display label should match the formatter output.");
+		Assert.Equal(InlineKeyLabel.Format(Key.Enter, ModifierKeys.None, (char?)null), label, "Display label should match the formatter output.");
 		Assert.Equal(string.Empty, error, "Error should be empty on success.");
 	}
 
 	public static void ParsesKeyWithCharacter()
 	{
-		var success = InlineKeyLabel.TryParse("A (\"a\")", out var key, out var character, out var label, out var error);
+		var success = InlineKeyLabel.TryParse("A (\"a\")", out var key, out var modifiers, out var character, out var label, out var error);
 		Assert.True(success, "Key with character suffix should parse successfully.");
 		Assert.Equal(Key.A, key, "Parsed key should match the prefix.");
+		Assert.Equal(ModifierKeys.None, modifiers, "No modifiers expected for plain key.");
 		Assert.True(character.HasValue && character.Value == 'a', "Character should reflect the literal.");
-		Assert.Equal(InlineKeyLabel.Format(Key.A, 'a'), label, "Display label should round-trip through formatter.");
+		Assert.Equal(InlineKeyLabel.Format(Key.A, ModifierKeys.None, 'a'), label, "Display label should round-trip through formatter.");
 		Assert.Equal(string.Empty, error, "Error should be empty on success.");
 	}
 
 	public static void RejectsInvalidKey()
 	{
-		var success = InlineKeyLabel.TryParse("NotAKey", out _, out _, out _, out var error);
+		var success = InlineKeyLabel.TryParse("NotAKey", out _, out _, out _, out _, out var error);
 		Assert.True(!success, "Unknown key names should fail to parse.");
 		Assert.True(error.Contains("Unknown", StringComparison.OrdinalIgnoreCase), "Error should mention the unknown key.");
 	}
 
 	public static void RejectsBadCharacterLiteral()
 	{
-		var success = InlineKeyLabel.TryParse("A (\"ab\")", out _, out _, out _, out var error);
+		var success = InlineKeyLabel.TryParse("A (\"ab\")", out _, out _, out _, out _, out var error);
 		Assert.True(!success, "Multiple-character literals should fail.");
 		Assert.True(error.Contains("exactly", StringComparison.OrdinalIgnoreCase), "Error should explain the character length restriction.");
+	}
+}
+
+internal static class Tests_RecordingSerializer
+{
+	public static void RoundTripsRecording()
+	{
+		var events = new List<RecordedKeyEvent>
+		{
+			RecordedKeyEvent.First(Key.A, ModifierKeys.Control | ModifierKeys.Shift, 'A'),
+			new RecordedKeyEvent(Key.B, TimeSpan.FromMilliseconds(125), ModifierKeys.Alt, 'b')
+		};
+
+		var json = RecordingSerializer.Serialize(events);
+		Assert.True(RecordingSerializer.TryDeserialize(json, out var parsed, out var error), "Serialized payload should load successfully.");
+		Assert.Equal(string.Empty, error, "Round trip should not produce a validation error.");
+		Assert.Equal(events.Count, parsed.Count, "Round trip should preserve entry count.");
+
+		for (var i = 0; i < events.Count; i++)
+		{
+			Assert.Equal(events[i], parsed[i], $"Round trip should preserve event #{i + 1}.");
+		}
+	}
+
+	public static void RejectsInvalidKey()
+	{
+		const string json = "{\n  \"version\": 1,\n  \"entries\": [\n    { \"key\": \"NotAKey\", \"delayMilliseconds\": 0 }\n  ]\n}";
+		var success = RecordingSerializer.TryDeserialize(json, out _, out var error);
+		Assert.True(!success, "Unknown key names should fail validation.");
+		Assert.True(error.Contains("unknown", StringComparison.OrdinalIgnoreCase), "Error message should report the unknown key.");
+	}
+
+	public static void RejectsUnknownModifier()
+	{
+		const string json = "{\n  \"version\": 1,\n  \"entries\": [\n    {\n      \"key\": \"A\",\n      \"modifiers\": [\"Hyper\"],\n      \"delayMilliseconds\": 10\n    }\n  ]\n}";
+		var success = RecordingSerializer.TryDeserialize(json, out _, out var error);
+		Assert.True(!success, "Unknown modifiers should fail validation.");
+		Assert.True(error.Contains("Unknown modifier", StringComparison.OrdinalIgnoreCase), "Error message should report the modifier.");
 	}
 }
 
@@ -211,8 +255,8 @@ internal static class Tests_PlaybackService
 	{
 		var events = new[]
 		{
-			RecordedKeyEvent.First(Key.A, 'a'),
-			new RecordedKeyEvent(Key.B, TimeSpan.Zero, 'b')
+			RecordedKeyEvent.First(Key.A, ModifierKeys.Control | ModifierKeys.Shift, 'a'),
+			new RecordedKeyEvent(Key.B, TimeSpan.Zero, ModifierKeys.Alt, 'b')
 		};
 
 		var fakeSender = new RecordingKeySender();
@@ -229,6 +273,7 @@ internal static class Tests_PlaybackService
 
 		var sent = fakeSender.SentKeys;
 		Assert.SequenceEqual(new[] { Key.A, Key.B }, sent.Select(s => s.Key).ToList(), "Playback should dispatch keys in plan order");
+		Assert.SequenceEqual(new[] { ModifierKeys.Control | ModifierKeys.Shift, ModifierKeys.Alt }, sent.Select(s => s.Modifiers).ToList(), "Playback should preserve modifiers.");
 		Assert.SequenceEqual(new char?[] { 'a', 'b' }, sent.Select(s => s.Character).ToList(), "Playback should pass along recorded characters");
 	}
 
@@ -236,7 +281,7 @@ internal static class Tests_PlaybackService
 	{
 		var events = new[]
 		{
-			RecordedKeyEvent.First(Key.A, 'a')
+			RecordedKeyEvent.First(Key.A, character: 'a')
 		};
 
 		using var cts = new CancellationTokenSource();
@@ -321,14 +366,14 @@ internal static class Tests_NativeKeySender
 			VirtualKeyExceptionFactory = () => new InvalidOperationException("SendInput VK fallback failed with error code 87 (VK=65)")
 		};
 		var sender = new NativeKeySender(fake);
-		Assert.Throws<InvalidOperationException>(() => sender.SendKeyPress(Key.A), "map virtual key");
+		Assert.Throws<InvalidOperationException>(() => sender.SendKeyPress(Key.A, ModifierKeys.None), "map virtual key");
 	}
 
 	public static void SendsDownThenUpWithExtendedFlag()
 	{
 		var fake = new FakeNativeKeyboard(mapResponses: new Queue<uint>(new[] { 0x11Du }));
 		var sender = new NativeKeySender(fake);
-		sender.SendKeyPress(Key.RightCtrl);
+		sender.SendKeyPress(Key.RightCtrl, ModifierKeys.None);
 
 		Assert.Equal(2, fake.ScanEvents.Count, "Expected key down and key up events.");
 		Assert.True(!fake.ScanEvents[0].IsKeyUp, "First event should be key down.");
@@ -344,7 +389,7 @@ internal static class Tests_NativeKeySender
 			ScanExceptionFactory = () => new InvalidOperationException("Send failure")
 		};
 		var sender = new NativeKeySender(fake);
-		Assert.Throws<InvalidOperationException>(() => sender.SendKeyPress(Key.A), "Send failure");
+		Assert.Throws<InvalidOperationException>(() => sender.SendKeyPress(Key.A, ModifierKeys.None), "Send failure");
 	}
 
 	public static void FallsBackToVirtualKeyOnInvalidParameter()
@@ -355,7 +400,7 @@ internal static class Tests_NativeKeySender
 		};
 
 		var sender = new NativeKeySender(fake);
-		sender.SendKeyPress(Key.H);
+		sender.SendKeyPress(Key.H, ModifierKeys.None);
 
 		Assert.Equal(2, fake.VirtualKeyEvents.Count, "Expected fallback to send VK events.");
 		Assert.Equal((ushort)KeyInterop.VirtualKeyFromKey(Key.H), fake.VirtualKeyEvents[0].VirtualKey, "Fallback should reuse original VK.");
@@ -385,7 +430,7 @@ internal static class Tests_NativeKeySender
 		};
 
 		var sender = new NativeKeySender(fake);
-		sender.SendKeyPress(Key.Space);
+		sender.SendKeyPress(Key.Space, ModifierKeys.None);
 
 		Assert.True(unicodeFailed, "Unicode path should be attempted and fail once before succeeding.");
 		Assert.Equal(2, fake.UnicodeEvents.Count, "Final unicode retry should record two events.");
@@ -400,7 +445,7 @@ internal static class Tests_NativeKeySender
 			charResponses: new Queue<uint>(new[] { 0x61u }));
 
 		var sender = new NativeKeySender(fake);
-		sender.SendKeyPress(Key.A);
+		sender.SendKeyPress(Key.A, ModifierKeys.None);
 
 		Assert.Equal(2, fake.UnicodeEvents.Count, "Expected unicode path to execute for character keys.");
 		Assert.Equal('a', fake.UnicodeEvents[0].Character, "Unicode event should use lowercase character mapping when available.");
@@ -415,13 +460,41 @@ internal static class Tests_NativeKeySender
 			charResponses: new Queue<uint>(new[] { 0x41u }));
 
 		var sender = new NativeKeySender(fake);
-		sender.SendKeyPress(Key.A, 'a');
+		sender.SendKeyPress(Key.A, ModifierKeys.None, 'a');
 
 		Assert.Equal(2, fake.UnicodeEvents.Count, "Recorded character path should produce key down and up events.");
 		Assert.Equal('a', fake.UnicodeEvents[0].Character, "Recorded character should be used before fallback mappings.");
 		Assert.Equal('a', fake.UnicodeEvents[1].Character, "Recorded character should be used for key release as well.");
 		Assert.Equal(0, fake.ScanEvents.Count, "Recorded character success should skip scan codes.");
 		Assert.Equal(0, fake.VirtualKeyEvents.Count, "Recorded character success should skip VK fallback.");
+	}
+
+	public static void AvoidsUnicodeWithModifiers()
+	{
+		var scanResponses = new Queue<uint>(new[]
+		{
+			0x01Du,
+			0x01Du,
+			0x02Eu
+		});
+		var charResponses = new Queue<uint>(new[] { 0x63u });
+		var fake = new FakeNativeKeyboard(scanResponses, charResponses);
+		var sender = new NativeKeySender(fake);
+
+		sender.SendKeyPress(Key.C, ModifierKeys.Control);
+
+		Assert.Equal(0, fake.UnicodeEvents.Count, "Modifier combinations should avoid unicode injection.");
+		Assert.Equal(4, fake.ScanEvents.Count, "Expected scan events for modifier down/up and key down/up.");
+		var ctrlVk = (ushort)KeyInterop.VirtualKeyFromKey(Key.LeftCtrl);
+		var keyVk = (ushort)KeyInterop.VirtualKeyFromKey(Key.C);
+		Assert.Equal(ctrlVk, fake.ScanEvents[0].OriginalVirtualKey, "First scan event should correspond to modifier down.");
+		Assert.Equal(keyVk, fake.ScanEvents[1].OriginalVirtualKey, "Second scan event should correspond to key down.");
+		Assert.Equal(keyVk, fake.ScanEvents[2].OriginalVirtualKey, "Third scan event should correspond to key up.");
+		Assert.Equal(ctrlVk, fake.ScanEvents[3].OriginalVirtualKey, "Fourth scan event should correspond to modifier release.");
+		Assert.True(!fake.ScanEvents[0].IsKeyUp, "Modifier should start with key down event.");
+		Assert.True(!fake.ScanEvents[1].IsKeyUp, "Key should press before release.");
+		Assert.True(fake.ScanEvents[2].IsKeyUp, "Key should release in third event.");
+		Assert.True(fake.ScanEvents[3].IsKeyUp, "Modifier should release last.");
 	}
 
 	public static void UsesScanCodesForReturn()
@@ -431,7 +504,7 @@ internal static class Tests_NativeKeySender
 			charResponses: new Queue<uint>(new[] { 0x0Du }));
 
 		var sender = new NativeKeySender(fake);
-		sender.SendKeyPress(Key.Return);
+		sender.SendKeyPress(Key.Return, ModifierKeys.None);
 
 		Assert.Equal(2, fake.ScanEvents.Count, "Return should emit scan code down/up.");
 		Assert.True(!fake.ScanEvents[0].IsKeyUp, "First scan event should be key down.");
@@ -554,11 +627,11 @@ internal readonly record struct UnicodeEvent(char Character, bool IsKeyUp);
 
 internal sealed class RecordingKeySender : IKeySender
 {
-	public List<(Key Key, char? Character)> SentKeys { get; } = new();
+	public List<(Key Key, ModifierKeys Modifiers, char? Character)> SentKeys { get; } = new();
 
-	public void SendKeyPress(Key key, char? recordedCharacter = null)
+	public void SendKeyPress(Key key, ModifierKeys modifiers, char? recordedCharacter = null)
 	{
-		SentKeys.Add((key, recordedCharacter));
+		SentKeys.Add((key, modifiers, recordedCharacter));
 	}
 }
 
@@ -577,11 +650,11 @@ internal sealed class CancellingKeySender : IKeySender
 		}
 	}
 
-	public List<(Key Key, char? Character)> SentKeys { get; } = new();
+	public List<(Key Key, ModifierKeys Modifiers, char? Character)> SentKeys { get; } = new();
 
-	public void SendKeyPress(Key key, char? recordedCharacter = null)
+	public void SendKeyPress(Key key, ModifierKeys modifiers, char? recordedCharacter = null)
 	{
-		SentKeys.Add((key, recordedCharacter));
+		SentKeys.Add((key, modifiers, recordedCharacter));
 		if (SentKeys.Count >= _threshold)
 		{
 			_cts.Cancel();

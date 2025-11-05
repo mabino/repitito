@@ -25,7 +25,7 @@ public sealed class NativeKeySender : IKeySender
 
     internal static int InputStructSizeForTests => InputStructSize;
 
-    public void SendKeyPress(Key key, char? recordedCharacter = null)
+    public void SendKeyPress(Key key, ModifierKeys modifiers, char? recordedCharacter = null)
     {
         var virtualKey = (ushort)KeyInterop.VirtualKeyFromKey(key);
         if (virtualKey == 0)
@@ -33,15 +33,51 @@ public sealed class NativeKeySender : IKeySender
             return;
         }
 
-        var failures = new List<string>();
-        string? recordedCharFailure = null;
-        if (recordedCharacter is not null && TrySendUnicode(recordedCharacter.Value, out recordedCharFailure))
+        var pressedModifiers = new List<Key>();
+        var allowUnicode = modifiers == ModifierKeys.None;
+
+        try
         {
-            return;
+            foreach (var modifierKey in ResolveModifierKeys(modifiers))
+            {
+                if (SendDirectional(modifierKey, isKeyUp: false))
+                {
+                    pressedModifiers.Add(modifierKey);
+                }
+            }
+
+            SendKeyPressCore(virtualKey, recordedCharacter, allowUnicode);
         }
-        if (recordedCharFailure is not null)
+        finally
         {
-            failures.Add("RecordedChar: " + recordedCharFailure);
+            for (var i = pressedModifiers.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    SendDirectional(pressedModifiers[i], isKeyUp: true);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Swallow release failures: modifiers are best-effort and should not break playback cleanup.
+                }
+            }
+        }
+    }
+
+    private void SendKeyPressCore(ushort virtualKey, char? recordedCharacter, bool allowUnicode)
+    {
+        var failures = new List<string>();
+        if (allowUnicode && recordedCharacter is not null)
+        {
+            if (TrySendUnicode(recordedCharacter.Value, out var recordedCharFailure))
+            {
+                return;
+            }
+
+            if (recordedCharFailure is not null)
+            {
+                failures.Add("RecordedChar: " + recordedCharFailure);
+            }
         }
 
         string? unicodeFailure = null;
@@ -51,11 +87,11 @@ public sealed class NativeKeySender : IKeySender
         var mappedCharacter = charCode != 0 ? (char)charCode : '\0';
         var hasCharacter = charCode != 0 && !char.IsControl(mappedCharacter);
 
-        if (hasCharacter && TrySendUnicode(mappedCharacter, out unicodeFailure))
+        if (allowUnicode && hasCharacter && TrySendUnicode(mappedCharacter, out unicodeFailure))
         {
             return;
         }
-        if (unicodeFailure is not null)
+        if (allowUnicode && unicodeFailure is not null)
         {
             failures.Add(unicodeFailure);
         }
@@ -66,14 +102,15 @@ public sealed class NativeKeySender : IKeySender
 
         if (scanCode == 0)
         {
+            var unicodeFallbackAllowed = allowUnicode && hasCharacter;
             if (!TrySendVirtualKey(virtualKey, out vkFailure)
-                && !(hasCharacter && TrySendUnicode(mappedCharacter, out secondaryUnicodeFailure)))
+                && !(unicodeFallbackAllowed && TrySendUnicode(mappedCharacter, out secondaryUnicodeFailure)))
             {
                 if (vkFailure is not null)
                 {
                     failures.Add(vkFailure);
                 }
-                if (secondaryUnicodeFailure is not null)
+                if (unicodeFallbackAllowed && secondaryUnicodeFailure is not null)
                 {
                     failures.Add(secondaryUnicodeFailure);
                 }
@@ -102,8 +139,8 @@ public sealed class NativeKeySender : IKeySender
                 }
             }
 
-            var unicodeSuccess = hasCharacter && TrySendUnicode(mappedCharacter, out secondaryUnicodeFailure);
-            if (!unicodeSuccess && secondaryUnicodeFailure is not null)
+            var unicodeSuccess = allowUnicode && hasCharacter && TrySendUnicode(mappedCharacter, out secondaryUnicodeFailure);
+            if (!unicodeSuccess && allowUnicode && secondaryUnicodeFailure is not null)
             {
                 failures.Add(secondaryUnicodeFailure);
             }
@@ -173,6 +210,74 @@ public sealed class NativeKeySender : IKeySender
             }
             return false;
         }
+    }
+
+    private static IEnumerable<Key> ResolveModifierKeys(ModifierKeys modifiers)
+    {
+        if ((modifiers & ModifierKeys.Control) != 0)
+        {
+            yield return Key.LeftCtrl;
+        }
+
+        if ((modifiers & ModifierKeys.Shift) != 0)
+        {
+            yield return Key.LeftShift;
+        }
+
+        if ((modifiers & ModifierKeys.Alt) != 0)
+        {
+            yield return Key.LeftAlt;
+        }
+
+        if ((modifiers & ModifierKeys.Windows) != 0)
+        {
+            yield return Key.LWin;
+        }
+    }
+
+    private bool SendDirectional(Key key, bool isKeyUp)
+    {
+        var virtualKey = (ushort)KeyInterop.VirtualKeyFromKey(key);
+        if (virtualKey == 0)
+        {
+            return false;
+        }
+
+        var scanResult = _nativeKeyboard.MapVirtualKey(virtualKey);
+        var scanCode = (ushort)(scanResult & 0xFF);
+        var mappedExtended = (scanResult & 0x0100) != 0;
+        var isExtended = mappedExtended || IsExtendedKey(virtualKey);
+
+        if (scanCode != 0)
+        {
+            try
+            {
+                _nativeKeyboard.SendScanCodeEvent(scanCode, isKeyUp, isExtended, virtualKey);
+                return true;
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (!IsInvalidParameterError(ex))
+                {
+                    throw;
+                }
+            }
+        }
+
+        try
+        {
+            _nativeKeyboard.SendVirtualKeyEvent(virtualKey, isKeyUp);
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (!IsInvalidParameterError(ex))
+            {
+                throw;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsInvalidParameterError(InvalidOperationException ex)

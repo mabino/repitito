@@ -45,7 +45,7 @@ public sealed class KeySequencePlanner
         foreach (var evt in ordered)
         {
             var delayMillis = ComputeDelayMilliseconds(evt, settings);
-            actions.Add(new KeyPlaybackAction(evt.Key, evt.Character, delayMillis));
+            actions.Add(new KeyPlaybackAction(evt.Key, evt.Modifiers, evt.Character, delayMillis));
         }
 
         return actions;
@@ -93,4 +93,4 @@ public sealed class KeySequencePlanner
 /// <summary>
 /// Represents a single key action along with the delay before it should be invoked.
 /// </summary>
-public sealed record KeyPlaybackAction(Key Key, char? Character, int DelayBeforeMilliseconds);
+public sealed record KeyPlaybackAction(Key Key, ModifierKeys Modifiers, char? Character, int DelayBeforeMilliseconds);

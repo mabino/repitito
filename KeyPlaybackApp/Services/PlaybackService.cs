@@ -46,7 +46,7 @@ public sealed class PlaybackService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await Task.Delay(action.DelayBeforeMilliseconds, cancellationToken).ConfigureAwait(false);
-                _keySender.SendKeyPress(action.Key, action.Character);
+                _keySender.SendKeyPress(action.Key, action.Modifiers, action.Character);
             }
 
             if (!settings.LoopPlayback)
