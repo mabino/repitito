@@ -66,6 +66,7 @@ pwsh -File scripts/package.ps1 -Configuration Release -Runtime win-x64
   - `MainWindow.xaml` – UI layer for recording and playback controls.
 - `KeyPlaybackApp.Tests/` – Console test harness covering planner logic and interop fallbacks.
 - `KeyPlaybackSuite.sln` – Solution file referencing the app and test projects.
+- `docs/` – Cute GitHub Pages site (select `docs/` as the Pages source to publish it).
 
 ## Hotkey Reference
 

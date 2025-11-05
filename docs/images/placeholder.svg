@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe6f1" />
+      <stop offset="100%" stop-color="#e5f7ff" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="360" rx="24" fill="url(#bg)" />
+  <rect x="40" y="60" width="520" height="240" rx="18" fill="#ffffff" stroke="#f2a7d3" stroke-width="4" />
+  <rect x="40" y="40" width="520" height="36" rx="12" fill="#fcd9ec" />
+  <circle cx="70" cy="58" r="8" fill="#ff6f91" />
+  <circle cx="100" cy="58" r="8" fill="#ffd166" />
+  <circle cx="130" cy="58" r="8" fill="#06d6a0" />
+  <text x="60" y="120" font-family="'Segoe UI', sans-serif" font-size="32" fill="#ff6f91">Repitito</text>
+  <text x="60" y="160" font-family="'Segoe UI', sans-serif" font-size="18" fill="#5b5f97">The Little Key Repeater</text>
+  <text x="60" y="210" font-family="'Consolas', monospace" font-size="16" fill="#4c4c78">Ctrl + Shift + P ➜ Play macro</text>
+  <text x="60" y="240" font-family="'Consolas', monospace" font-size="16" fill="#4c4c78">F8 ➜ Toggle playback</text>
+  <text x="60" y="270" font-family="'Consolas', monospace" font-size="16" fill="#4c4c78">Comment: "Sprinkle some sparkle!"</text>
+</svg>
